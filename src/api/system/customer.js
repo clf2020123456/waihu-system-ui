@@ -42,3 +42,12 @@ export function delCustomer(id) {
     method: 'delete'
   })
 }
+
+// 下载导入模板
+export function exportTemplate() {
+  return request({
+    url: '/system/customer/importTemplate',
+    method: 'get',
+    responseType: 'blob'
+  })
+}

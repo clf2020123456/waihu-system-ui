@@ -113,6 +113,24 @@
         <el-button
           type="primary"
           plain
+          icon="Download"
+          @click="handleDownloadTemplate"
+          v-hasPermi="['system:customer:import']"
+        >下载模板</el-button>
+      </el-col>
+      <el-col :span="1.5">
+        <el-button
+          type="primary"
+          plain
+          icon="Upload"
+          @click="handleImport"
+          v-hasPermi="['system:customer:import']"
+        >导入</el-button>
+      </el-col>
+      <el-col :span="1.5">
+        <el-button
+          type="primary"
+          plain
           icon="Message"
           :disabled="multiple"
           @click="handleBatchSms"
@@ -255,19 +273,58 @@
         </div>
       </div>
     </el-dialog>
+
+    <!-- 导入对话框 -->
+    <el-dialog title="导入客户" v-model="importDialogVisible" width="400px" append-to-body>
+      <div class="import-section">
+        <el-upload
+          ref="upload"
+          :limit="1"
+          accept=".xlsx, .xls"
+          :headers="{ 'Content-Type': 'multipart/form-data' }"
+          :action="importUrl"
+          :on-success="handleImportSuccess"
+          :on-error="handleImportError"
+          :auto-upload="false"
+          :show-file-list="true"
+          class="upload-demo"
+        >
+          <el-button type="primary" @click="$refs.upload.submit()">上传文件</el-button>
+          <template #tip>
+            <div class="el-upload__tip text-center">
+              <span>支持 .xlsx, .xls 格式</span>
+              <el-button type="text" @click="handleDownloadTemplate">下载模板</el-button>
+            </div>
+          </template>
+        </el-upload>
+        <div class="import-tips">
+          <h4>导入说明：</h4>
+          <ul>
+            <li>1. 导入字段：客户名称、手机号码、批次号、消费金额</li>
+            <li>2. 客户名称和手机号码为必填项</li>
+            <li>3. 请严格按照模板格式填写数据</li>
+          </ul>
+        </div>
+      </div>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="importDialogVisible = false">取 消</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup name="Customer">
-import { listCustomer, getCustomer, delCustomer, addCustomer, updateCustomer } from "@/api/system/customer"
+import { listCustomer, getCustomer, delCustomer, addCustomer, updateCustomer, exportTemplate } from "@/api/system/customer"
 import { addTask } from "@/api/system/task"
 import { addTaskCustomerRelation } from "@/api/system/taskCustomerRelation"
 import { getTagsByUser, addUserDefinedTag, delUserDefinedTag } from '@/api/system/userDefinedTag'
 import FollowUpDialog from './components/FollowUpDialog.vue'
 
 const { proxy } = getCurrentInstance()
-const sms_status = proxy.useDict('sms_status')
-const phone_status = proxy.useDict('phone_status')
+// 正确的字典使用方式 - 使用解构赋值
+const { sms_status, phone_status } = proxy.useDict('sms_status', 'phone_status')
 
 // 电话状态列表，用于标签管理弹窗显示
 const phoneStatusList = ref([])
@@ -276,8 +333,11 @@ const phoneStatusList = ref([])
 function loadUserDefinedTags() {
   getTagsByUser().then(res => {
     userDefinedTags.value = res.data || []
+    // 显示字典数据以便调试
+    console.log('sms_status:', sms_status)
+    console.log('phone_status:', phone_status)
     // 确保phone_status是数组
-    const phoneStatusTags = Array.isArray(phone_status) ? phone_status : []
+    const phoneStatusTags = phone_status.value
     console.log('phoneStatusTags:', phoneStatusTags)
     // 更新电话状态列表用于标签管理弹窗
     phoneStatusList.value = phoneStatusTags
@@ -361,6 +421,8 @@ const showTagDialog = ref(false)
 const userDefinedTags = ref([])
 const allTags = ref([])
 const newTagName = ref('')
+const importDialogVisible = ref(false)
+const importUrl = ref('')
 
 const data = reactive({
   form: {},
@@ -581,6 +643,57 @@ function handleExport() {
   }, `customer_${new Date().getTime()}.xlsx`)
 }
 
+/** 下载模板按钮操作 */
+function handleDownloadTemplate() {
+  exportTemplate().then(response => {
+    // 创建一个Blob对象
+    const blob = new Blob([response], { type: 'application/vnd.ms-excel' })
+    // 创建下载链接
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `customer_import_template_${new Date().getTime()}.xlsx`
+    // 触发下载
+    document.body.appendChild(link)
+    link.click()
+    // 清理
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+  }).catch(error => {
+    console.error('下载模板失败:', error)
+    proxy.$modal.msgError('下载模板失败，请重试')
+  })
+}
+
+/** 导入按钮操作 */
+function handleImport() {
+  // 设置导入API URL - 使用相对路径
+  importUrl.value = '/system/customer/import'
+  // 显示导入对话框
+  importDialogVisible.value = true
+  // 重置上传组件
+  if (proxy.$refs.upload) {
+    proxy.$refs.upload.clearFiles()
+  }
+}
+
+/** 导入成功处理 */
+function handleImportSuccess(response) {
+  if (response.code === 200) {
+    proxy.$modal.msgSuccess('导入成功')
+    importDialogVisible.value = false
+    getList() // 重新加载客户列表
+  } else {
+    proxy.$modal.msgError(response.msg || '导入失败')
+  }
+}
+
+/** 导入失败处理 */
+function handleImportError(error) {
+  console.error('导入失败:', error)
+  proxy.$modal.msgError('导入失败，请检查文件格式是否正确')
+}
+
 // 初始化标签数据
 loadUserDefinedTags()
 // 加载客户列表
@@ -653,5 +766,35 @@ getList()
 .el-dialog__footer {
   border-top: 1px solid #f0f0f0;
   padding-top: 15px;
+}
+
+/* 导入对话框样式 */
+.import-section {
+  padding: 10px 0;
+}
+
+.import-tips {
+  margin-top: 20px;
+  padding: 15px;
+  background-color: #f5f7fa;
+  border-radius: 4px;
+}
+
+.import-tips h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: #303133;
+  margin-bottom: 10px;
+}
+
+.import-tips ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.import-tips li {
+  font-size: 13px;
+  color: #606266;
+  line-height: 24px;
 }
 </style>
