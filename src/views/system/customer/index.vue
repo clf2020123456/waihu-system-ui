@@ -287,9 +287,10 @@
           :on-error="handleImportError"
           :auto-upload="false"
           :show-file-list="true"
+          :on-change="handleFileChange"
           class="upload-demo"
         >
-          <el-button type="primary" @click="$refs.upload.submit()">上传文件</el-button>
+          <el-button type="primary">选择文件</el-button>
           <template #tip>
             <div class="el-upload__tip text-center">
               <span>支持 .xlsx, .xls 格式</span>
@@ -309,6 +310,7 @@
       <template #footer>
         <div class="dialog-footer">
           <el-button @click="importDialogVisible = false">取 消</el-button>
+          <el-button type="primary" @click="submitImport" :disabled="!hasFileSelected">确 认</el-button>
         </div>
       </template>
     </el-dialog>
@@ -423,6 +425,7 @@ const allTags = ref([])
 const newTagName = ref('')
 const importDialogVisible = ref(false)
 const importUrl = ref('')
+const hasFileSelected = ref(false)
 
 const data = reactive({
   form: {},
@@ -671,9 +674,22 @@ function handleImport() {
   importUrl.value = '/system/customer/import'
   // 显示导入对话框
   importDialogVisible.value = true
-  // 重置上传组件
+  // 重置上传组件和文件选择状态
   if (proxy.$refs.upload) {
     proxy.$refs.upload.clearFiles()
+  }
+  hasFileSelected.value = false
+}
+
+/** 文件选择变化处理 */
+function handleFileChange(file, fileList) {
+  hasFileSelected.value = fileList.length > 0
+}
+
+/** 提交导入 */
+function submitImport() {
+  if (proxy.$refs.upload) {
+    proxy.$refs.upload.submit()
   }
 }
 
