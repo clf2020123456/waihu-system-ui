@@ -194,7 +194,16 @@ export function tansParams(params) {
     const value = params[propName]
     var part = encodeURIComponent(propName) + "="
     if (value !== null && value !== "" && typeof (value) !== "undefined") {
-      if (typeof value === 'object') {
+      if (Array.isArray(value)) {
+        // 处理数组参数
+        for (let i = 0; i < value.length; i++) {
+          if (value[i] !== null && value[i] !== "" && typeof (value[i]) !== 'undefined') {
+            let arrayParam = propName + '[' + i + ']'
+            var subPart = encodeURIComponent(arrayParam) + "="
+            result += subPart + encodeURIComponent(value[i]) + "&"
+          }
+        }
+      } else if (typeof value === 'object') {
         for (const key of Object.keys(value)) {
           if (value[key] !== null && value[key] !== "" && typeof (value[key]) !== 'undefined') {
             let params = propName + '[' + key + ']'

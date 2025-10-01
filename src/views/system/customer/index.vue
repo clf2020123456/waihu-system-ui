@@ -36,7 +36,7 @@
         </el-select>
       </el-form-item>
       <el-form-item label="客户标签" prop="tags">
-        <el-select v-model="queryParams.tags" placeholder="请选择客户标签" clearable style="width: 200px" multiple collapse-tags>
+        <el-select v-model="queryParams.tags" placeholder="请选择客户标签" clearable style="width: 200px">
           <el-option v-for="tag in allTags" :key="tag.value" :label="tag.label" :value="tag.value" />
         </el-select>
       </el-form-item>
@@ -256,7 +256,7 @@
         <div class="tag-section">
           <h4>系统默认标签（电话状态）</h4>
           <div class="tag-list">
-            <el-tag v-for="dict in phoneStatusList" :key="dict.value" size="small" type="info" style="margin: 5px;">{{ dict.label }}</el-tag>
+            <el-tag v-for="tag in phoneStatusList.length > 0 ? phoneStatusList : DEFAULT_TAGS" :key="tag.value || tag.label" size="small" type="info" style="margin: 5px;">{{ tag.label || tag.value }}</el-tag>
           </div>
         </div>
         <div class="tag-section">
@@ -274,6 +274,31 @@
       </div>
     </el-dialog>
 
+    <!-- 短信内容输入对话框 -->
+    <el-dialog title="批量短信" v-model="smsDialogVisible" width="500px" append-to-body>
+      <el-form label-width="80px">
+        <el-form-item label="短信内容">
+          <el-input
+            v-model="smsContent"
+            type="textarea"
+            :rows="5"
+            placeholder="请输入短信内容"
+            maxlength="500"
+            show-word-limit
+          />
+        </el-form-item>
+        <el-form-item label="发送对象">
+          <el-tag type="info">已选择 {{ ids.length }} 个客户</el-tag>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="smsDialogVisible = false">取 消</el-button>
+          <el-button type="primary" @click="confirmBatchSms">确 定</el-button>
+        </div>
+      </template>
+    </el-dialog>
+
     <!-- 导入对话框 -->
     <el-dialog title="导入客户" v-model="importDialogVisible" width="400px" append-to-body>
       <div class="import-section">
@@ -281,7 +306,6 @@
           ref="upload"
           :limit="1"
           accept=".xlsx, .xls"
-          :headers="{ 'Content-Type': 'multipart/form-data' }"
           :action="importUrl"
           :on-success="handleImportSuccess"
           :on-error="handleImportError"
@@ -331,20 +355,68 @@ const { sms_status, phone_status } = proxy.useDict('sms_status', 'phone_status')
 // 电话状态列表，用于标签管理弹窗显示
 const phoneStatusList = ref([])
 
+// 默认标签配置
+const DEFAULT_TAGS = [
+  { value: '未拨号', label: '未拨号' },
+  { value: '已拨号', label: '已拨号' },
+  { value: '已接通', label: '已接通' },
+  { value: '占线', label: '占线' },
+  { value: '无人接听', label: '无人接听' },
+  { value: '已挂断', label: '已挂断' },
+  { value: '空号', label: '空号' },
+  { value: '关机', label: '关机' }
+]
+
 // 初始化标签数据
 function loadUserDefinedTags() {
+  // 先获取用户自定义标签
   getTagsByUser().then(res => {
     userDefinedTags.value = res.data || []
+    
+    // 确保phone_status是正确的数组格式
+    let phoneStatusTags = []
+    if (phone_status && phone_status.value && Array.isArray(phone_status.value)) {
+      phoneStatusTags = phone_status.value
+    } else if (Array.isArray(phone_status)) {
+      phoneStatusTags = phone_status
+    }
+    
     // 显示字典数据以便调试
     console.log('sms_status:', sms_status)
     console.log('phone_status:', phone_status)
-    // 确保phone_status是数组
-    const phoneStatusTags = phone_status.value
     console.log('phoneStatusTags:', phoneStatusTags)
+    
     // 更新电话状态列表用于标签管理弹窗
     phoneStatusList.value = phoneStatusTags
-    // 合并系统标签和用户自定义标签
-    allTags.value = [...phoneStatusTags.map(item => ({ value: item.label, label: item.label })), ...userDefinedTags.value.map(tag => ({ value: tag.tagName, label: tag.tagName }))]
+    
+    // 创建系统默认标签数组
+    const systemTags = phoneStatusTags.map(item => ({
+      value: item.label || item.value,
+      label: item.label || item.value
+    }))
+    
+    // 创建用户自定义标签数组
+    const customTags = userDefinedTags.value.map(tag => ({
+      value: tag.tagName,
+      label: tag.tagName
+    }))
+    
+    // 合并系统标签和用户自定义标签，如果系统标签为空则使用默认标签
+    if (systemTags.length > 0) {
+      allTags.value = [...systemTags, ...customTags]
+    } else {
+      // 如果系统没有配置字典，使用默认标签
+      allTags.value = [...DEFAULT_TAGS, ...customTags]
+    }
+    
+    // 确保标签数组不为空，如果仍然为空则使用默认标签
+    if (allTags.value.length === 0) {
+      allTags.value = [...DEFAULT_TAGS]
+    }
+  }).catch(error => {
+    console.error('加载标签失败:', error)
+    // 出错时也提供默认标签
+    allTags.value = [...DEFAULT_TAGS]
   })
 }
 
@@ -373,8 +445,10 @@ function handleAddTag() {
   // 确保phone_status是数组再使用
   const phoneStatusTags = Array.isArray(phone_status) ? phone_status : []
   const systemExists = phoneStatusTags.some(dict => dict.label === newTagName.value.trim())
+  // 检查是否与默认标签重复
+  const defaultExists = DEFAULT_TAGS.some(tag => tag.label === newTagName.value.trim())
   
-  if (exists || systemExists) {
+  if (exists || systemExists || defaultExists) {
     proxy.$modal.msgWarning('该标签名称已存在')
     return
   }
@@ -426,6 +500,8 @@ const newTagName = ref('')
 const importDialogVisible = ref(false)
 const importUrl = ref('')
 const hasFileSelected = ref(false)
+const smsDialogVisible = ref(false)
+const smsContent = ref('')
 
 const data = reactive({
   form: {},
@@ -435,7 +511,7 @@ const data = reactive({
     customerName: null,
     phone: null,
     batchNo: null,
-    tags: null,
+    tags: null, // 修改为单个值，支持单选
     smsStatus: null,
     consumptionAmount: null,
     userId: null,
@@ -460,6 +536,8 @@ const { queryParams, form, rules } = toRefs(data)
 /** 查询客户列表 */
 function getList() {
   loading.value = true
+  // 添加调试日志
+  console.log('查询参数:', queryParams.value)
   listCustomer(queryParams.value).then(response => {
     customerList.value = response.rows
     total.value = response.total
@@ -579,19 +657,33 @@ function submitForm() {
 
 /** 批量短信按钮操作 */
 function handleBatchSms() {
-  proxy.$modal.confirm('是否确认为选中的' + ids.value.length + '个客户创建批量短信任务？').then(function() {
-    // 创建任务并直接包含客户ID列表和任务类型
-    const task = {
-      taskName: `批量短信任务_${new Date().getTime()}`,
-      taskStatus: '0', // 0待处理
-      randomInterval: 2, // 随机间隔10秒
-      remark: `批量发送短信给${ids.value.length}个客户`,
-      customerIds: ids.value, // 客户ID列表
-      type: '2' // 2=短信任务类型
-    }
-    return addTask(task)
-  }).then(() => {
+  // 显示短信内容输入对话框
+  smsContent.value = ''
+  smsDialogVisible.value = true
+}
+
+/** 确认发送批量短信 */
+function confirmBatchSms() {
+  if (!smsContent.value || smsContent.value.trim() === '') {
+    proxy.$modal.msgWarning('请输入短信内容')
+    return
+  }
+  
+  // 创建任务并直接包含客户ID列表和任务类型
+  const task = {
+    taskName: `批量短信任务_${new Date().getTime()}`,
+    taskStatus: '0', // 0待处理
+    randomInterval: 2, // 随机间隔2秒
+    remark: `批量发送短信给${ids.value.length}个客户`,
+    customerIds: ids.value, // 客户ID列表
+    type: '2', // 2=短信任务类型
+    smsContent: smsContent.value.trim() // 短信内容
+  }
+  
+  addTask(task).then(() => {
     proxy.$modal.msgSuccess(`批量短信任务创建成功，已为${ids.value.length}个客户建立任务关联`)
+    smsDialogVisible.value = false
+    smsContent.value = ''
   }).catch(error => {
     console.error('批量短信任务创建失败:', error)
     proxy.$modal.msgError('批量短信任务创建失败，请重试')
@@ -671,7 +763,7 @@ function handleDownloadTemplate() {
 /** 导入按钮操作 */
 function handleImport() {
   // 设置导入API URL - 使用相对路径
-  importUrl.value = '/system/customer/import'
+  importUrl.value = '/dev-api/system/customer/import'
   // 显示导入对话框
   importDialogVisible.value = true
   // 重置上传组件和文件选择状态
@@ -710,8 +802,13 @@ function handleImportError(error) {
   proxy.$modal.msgError('导入失败，请检查文件格式是否正确')
 }
 
-// 初始化标签数据
+// 页面加载时立即初始化标签数据
+// 先设置默认标签，确保界面立即有选项
+allTags.value = [...DEFAULT_TAGS]
+
+// 然后异步加载用户自定义标签和系统字典
 loadUserDefinedTags()
+
 // 加载客户列表
 getList()
 

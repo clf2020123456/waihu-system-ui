@@ -2,10 +2,16 @@ import request from '@/utils/request'
 
 // 查询客户列表
 export function listCustomer(query) {
+  // 处理数组参数，确保tags数组正确传递
+  const params = { ...query }
+  if (params.tags && Array.isArray(params.tags)) {
+    // 对于数组参数，axios会自动处理为 tags[] 格式
+    console.log('发送的tags参数:', params.tags)
+  }
   return request({
     url: '/system/customer/list',
     method: 'get',
-    params: query
+    params: params
   })
 }
 
