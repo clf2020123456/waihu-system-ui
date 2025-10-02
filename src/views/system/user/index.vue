@@ -105,6 +105,15 @@
       <el-form :model="form" :rules="rules" ref="userRef" label-width="80px">
         <el-row>
           <el-col :span="24">
+            <el-form-item label="角色" prop="roleIds">
+              <el-select v-model="form.roleIds" placeholder="请选择" @change="handleRoleChange">
+                <el-option v-for="item in roleOptions" :key="item.roleId" :label="item.roleName" :value="item.roleId" :disabled="item.status == 1"></el-option>
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row>
+          <el-col :span="24">
             <el-form-item label="用户昵称" prop="nickName">
               <el-input v-model="form.nickName" placeholder="请输入用户昵称" maxlength="30" />
             </el-form-item>
@@ -124,8 +133,8 @@
         </el-row>
         <el-row>
           <el-col :span="12">
-            <el-form-item v-if="form.userId == undefined" label="用户名称" prop="userName">
-              <el-input v-model="form.userName" placeholder="请输入用户名称" maxlength="30" />
+            <el-form-item v-if="form.userId == undefined" label="登录账号" prop="userName">
+              <el-input v-model="form.userName" placeholder="请输入登录账号" maxlength="30" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
@@ -166,12 +175,15 @@
             </el-form-item>
           </el-col>
         </el-row>
-        <el-row>
-          <el-col :span="24">
-            <el-form-item label="角色">
-              <el-select v-model="form.roleIds" placeholder="请选择" @change="handleRoleChange">
-                <el-option v-for="item in roleOptions" :key="item.roleId" :label="item.roleName" :value="item.roleId" :disabled="item.status == 1"></el-option>
-              </el-select>
+        <el-row v-if="isCompanyManagerRole">
+          <el-col :span="12">
+            <el-form-item label="使用人数" prop="maxUserCount">
+              <el-input-number v-model="form.maxUserCount" :min="1" :max="10000" placeholder="请输入使用人数" style="width: 100%;" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="到期时间" prop="expiryDate">
+              <el-date-picker v-model="form.expiryDate" type="datetime" placeholder="请选择到期时间" value-format="YYYY-MM-DD HH:mm:ss" style="width: 100%;" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -281,6 +293,7 @@ const data = reactive({
     deptId: undefined
   },
   rules: {
+    roleIds: [{ required: true, message: "角色不能为空", trigger: "change" }],
     userName: [{ required: true, message: "用户名称不能为空", trigger: "blur" }, { min: 2, max: 20, message: "用户名称长度必须介于 2 和 20 之间", trigger: "blur" }],
     nickName: [{ required: true, message: "用户昵称不能为空", trigger: "blur" }],
     password: [{ required: true, message: "用户密码不能为空", trigger: "blur" }, { min: 5, max: 20, message: "用户密码长度必须介于 5 和 20 之间", trigger: "blur" }, { pattern: /^[^<>"'|\\]+$/, message: "不能包含非法字符：< > \" ' \\\ |", trigger: "blur" }],
@@ -509,7 +522,9 @@ function reset() {
     remark: undefined,
     roleIds: undefined,
     companyUserId: undefined,
-    parentUserId: undefined
+    parentUserId: undefined,
+    maxUserCount: undefined,
+    expiryDate: undefined
   }
   proxy.resetForm("userRef")
 }
