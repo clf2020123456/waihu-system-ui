@@ -39,12 +39,12 @@
           {{ formatDate(scope.row.nextContactTime) }}
         </template>
       </el-table-column>
-      <el-table-column label="创建人" align="center" prop="createBy" />
+      <!-- <el-table-column label="创建人" align="center" prop="createBy" />
       <el-table-column label="创建时间" align="center" prop="createTime">
         <template #default="scope">
           {{ formatDate(scope.row.createTime) }}
         </template>
-      </el-table-column>
+      </el-table-column> -->
       <el-table-column label="操作" align="center" class-name="small-padding fixed-width">
         <template #default="scope">
           <el-button 
@@ -100,8 +100,8 @@
             v-model="followUpForm.nextContactTime"
             type="datetime"
             placeholder="选择日期时间"
-            value-format="yyyy-MM-dd HH:mm:ss"
-            format="yyyy-MM-dd HH:mm:ss"
+            value-format="YYYY-MM-DD HH:mm:ss"
+            format="YYYY-MM-DD HH:mm:ss"
           />
         </el-form-item>
       </el-form>

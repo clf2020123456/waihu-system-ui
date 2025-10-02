@@ -134,3 +134,19 @@ export function deptTreeSelect() {
     method: 'get'
   })
 }
+
+// 查询公司列表（roleId=102的公司管理员用户）
+export function getCompanyList() {
+  return request({
+    url: '/system/user/companyList',
+    method: 'get'
+  })
+}
+
+// 根据公司ID获取部长列表（roleId=101的部长用户）
+export function getMinisterList(companyUserId) {
+  return request({
+    url: '/system/user/ministerList/' + companyUserId,
+    method: 'get'
+  })
+}
