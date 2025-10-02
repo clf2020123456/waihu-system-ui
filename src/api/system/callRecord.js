@@ -17,6 +17,15 @@ export function getCallRecord(id) {
   })
 }
 
+// 获取通话统计数据
+export function getCallStatistics(query) {
+  return request({
+    url: '/system/callRecord/statistics',
+    method: 'get',
+    params: query
+  })
+}
+
 // 新增通话记录
 export function addCallRecord(data) {
   return request({
