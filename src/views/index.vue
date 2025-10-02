@@ -9,14 +9,33 @@
     <!-- 筛选条件 -->
     <el-card class="box-card filter-card" shadow="hover">
       <el-form :model="queryParams" ref="queryForm" :inline="true">
-        <el-form-item label="用户筛选" prop="userId">
-          <el-select v-model="queryParams.userId" placeholder="请选择用户" clearable style="width: 200px;">
-            <el-option label="全部用户" :value="null"></el-option>
+        <el-form-item label="公司管理员" prop="companyUserId">
+          <el-select v-model="queryParams.companyUserId" placeholder="请选择公司" clearable style="width: 200px;" @change="handleCompanyChange">
             <el-option
-              v-for="user in userList"
-              :key="user.userId"
-              :label="user.nickName"
-              :value="user.userId"
+              v-for="company in companyList"
+              :key="company.userId"
+              :label="company.nickName"
+              :value="company.userId"
+            ></el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item label="部长" prop="ministerUserId">
+          <el-select v-model="queryParams.ministerUserId" placeholder="请选择部长" clearable style="width: 200px;" @change="handleMinisterChange">
+            <el-option
+              v-for="minister in ministerList"
+              :key="minister.userId"
+              :label="minister.nickName"
+              :value="minister.userId"
+            ></el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item label="业务员" prop="salesmanUserId">
+          <el-select v-model="queryParams.salesmanUserId" placeholder="请选择业务员" clearable style="width: 200px;" @change="getStatistics">
+            <el-option
+              v-for="salesman in salesmanList"
+              :key="salesman.userId"
+              :label="salesman.nickName"
+              :value="salesman.userId"
             ></el-option>
           </el-select>
         </el-form-item>
@@ -71,70 +90,12 @@
       <el-col :xs="24" :sm="12" :lg="6">
         <el-card class="stat-card" shadow="hover">
           <div class="stat-content">
-            <div class="stat-icon" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
-              <i class="el-icon-success"></i>
-            </div>
-            <div class="stat-info">
-              <div class="stat-value">{{ statistics.answeredCount || 0 }}</div>
-              <div class="stat-label">接听数</div>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-      
-      <el-col :xs="24" :sm="12" :lg="6">
-        <el-card class="stat-card" shadow="hover">
-          <div class="stat-content">
             <div class="stat-icon" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
               <i class="el-icon-document"></i>
             </div>
             <div class="stat-info">
               <div class="stat-value">{{ statistics.totalRecords || 0 }}</div>
               <div class="stat-label">总记录数</div>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-    </el-row>
-
-    <el-row :gutter="20" style="margin-top: 20px;">
-      <el-col :xs="24" :sm="12" :lg="6">
-        <el-card class="stat-card" shadow="hover">
-          <div class="stat-content">
-            <div class="stat-icon" style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);">
-              <i class="el-icon-error"></i>
-            </div>
-            <div class="stat-info">
-              <div class="stat-value">{{ statistics.rejectedCount || 0 }}</div>
-              <div class="stat-label">拒接数</div>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-      
-      <el-col :xs="24" :sm="12" :lg="6">
-        <el-card class="stat-card" shadow="hover">
-          <div class="stat-content">
-            <div class="stat-icon" style="background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);">
-              <i class="el-icon-warning"></i>
-            </div>
-            <div class="stat-info">
-              <div class="stat-value">{{ statistics.emptyNumberCount || 0 }}</div>
-              <div class="stat-label">空号数</div>
-            </div>
-          </div>
-        </el-card>
-      </el-col>
-      
-      <el-col :xs="24" :sm="12" :lg="6">
-        <el-card class="stat-card" shadow="hover">
-          <div class="stat-content">
-            <div class="stat-icon" style="background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);">
-              <i class="el-icon-remove-outline"></i>
-            </div>
-            <div class="stat-info">
-              <div class="stat-value">{{ statistics.notDialedCount || 0 }}</div>
-              <div class="stat-label">未拨号数</div>
             </div>
           </div>
         </el-card>
@@ -149,6 +110,108 @@
             <div class="stat-info">
               <div class="stat-value">{{ formatDuration(statistics.avgCallDuration) }}</div>
               <div class="stat-label">平均通话时长</div>
+            </div>
+          </div>
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <el-row :gutter="20" style="margin-top: 20px;">
+      <el-col :xs="24" :sm="12" :lg="8">
+        <el-card class="stat-card" shadow="hover">
+          <div class="stat-content">
+            <div class="stat-icon" style="background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);">
+              <i class="el-icon-remove-outline"></i>
+            </div>
+            <div class="stat-info">
+              <div class="stat-value">{{ statistics.notDialedCount || 0 }}</div>
+              <div class="stat-label">未拨号</div>
+            </div>
+          </div>
+        </el-card>
+      </el-col>
+      
+      <el-col :xs="24" :sm="12" :lg="8">
+        <el-card class="stat-card" shadow="hover">
+          <div class="stat-content">
+            <div class="stat-icon" style="background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);">
+              <i class="el-icon-position"></i>
+            </div>
+            <div class="stat-info">
+              <div class="stat-value">{{ statistics.dialedCount || 0 }}</div>
+              <div class="stat-label">已拨号</div>
+            </div>
+          </div>
+        </el-card>
+      </el-col>
+      
+      <el-col :xs="24" :sm="12" :lg="8">
+        <el-card class="stat-card" shadow="hover">
+          <div class="stat-content">
+            <div class="stat-icon" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+              <i class="el-icon-success"></i>
+            </div>
+            <div class="stat-info">
+              <div class="stat-value">{{ statistics.answeredCount || 0 }}</div>
+              <div class="stat-label">已接听</div>
+            </div>
+          </div>
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <el-row :gutter="20" style="margin-top: 20px;">
+      <el-col :xs="24" :sm="12" :lg="6">
+        <el-card class="stat-card" shadow="hover">
+          <div class="stat-content">
+            <div class="stat-icon" style="background: linear-gradient(135deg, #fa8231 0%, #ffc371 100%);">
+              <i class="el-icon-phone-outline"></i>
+            </div>
+            <div class="stat-info">
+              <div class="stat-value">{{ statistics.unansweredCount || 0 }}</div>
+              <div class="stat-label">未接听</div>
+            </div>
+          </div>
+        </el-card>
+      </el-col>
+      
+      <el-col :xs="24" :sm="12" :lg="6">
+        <el-card class="stat-card" shadow="hover">
+          <div class="stat-content">
+            <div class="stat-icon" style="background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);">
+              <i class="el-icon-error"></i>
+            </div>
+            <div class="stat-info">
+              <div class="stat-value">{{ statistics.rejectedCount || 0 }}</div>
+              <div class="stat-label">拒接</div>
+            </div>
+          </div>
+        </el-card>
+      </el-col>
+      
+      <el-col :xs="24" :sm="12" :lg="6">
+        <el-card class="stat-card" shadow="hover">
+          <div class="stat-content">
+            <div class="stat-icon" style="background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%);">
+              <i class="el-icon-warning"></i>
+            </div>
+            <div class="stat-info">
+              <div class="stat-value">{{ statistics.emptyNumberCount || 0 }}</div>
+              <div class="stat-label">空号</div>
+            </div>
+          </div>
+        </el-card>
+      </el-col>
+      
+      <el-col :xs="24" :sm="12" :lg="6">
+        <el-card class="stat-card" shadow="hover">
+          <div class="stat-content">
+            <div class="stat-icon" style="background: linear-gradient(135deg, #b490ca 0%, #5f72bd 100%);">
+              <i class="el-icon-turn-off"></i>
+            </div>
+            <div class="stat-info">
+              <div class="stat-value">{{ statistics.suspendedCount || 0 }}</div>
+              <div class="stat-label">停机</div>
             </div>
           </div>
         </el-card>
@@ -181,15 +244,19 @@
 <script setup name="Index">
 import { ref, onMounted, nextTick } from 'vue'
 import { getCallStatistics } from '@/api/system/callRecord'
-import { listUser } from '@/api/system/user'
+import { listUser, getCompanyList, getMinisterList } from '@/api/system/user'
 import * as echarts from 'echarts'
 
 const queryParams = ref({
-  userId: null
+  companyUserId: null,
+  ministerUserId: null,
+  salesmanUserId: null
 })
 
 const dateRange = ref([])
-const userList = ref([])
+const companyList = ref([])
+const ministerList = ref([])
+const salesmanList = ref([])
 const statistics = ref({
   totalCallDuration: 0,
   uniquePhoneCount: 0,
@@ -197,6 +264,9 @@ const statistics = ref({
   rejectedCount: 0,
   emptyNumberCount: 0,
   notDialedCount: 0,
+  dialedCount: 0,
+  unansweredCount: 0,
+  suspendedCount: 0,
   totalRecords: 0,
   totalConsumption: 0,
   avgCallDuration: 0
@@ -223,7 +293,9 @@ function formatDuration(seconds) {
 // 查询统计数据
 function getStatistics() {
   const params = {
-    userId: queryParams.value.userId
+    companyUserId: queryParams.value.companyUserId,
+    ministerUserId: queryParams.value.ministerUserId,
+    salesmanUserId: queryParams.value.salesmanUserId
   }
   
   if (dateRange.value && dateRange.value.length === 2) {
@@ -239,6 +311,9 @@ function getStatistics() {
       rejectedCount: 0,
       emptyNumberCount: 0,
       notDialedCount: 0,
+      dialedCount: 0,
+      unansweredCount: 0,
+      suspendedCount: 0,
       totalRecords: 0,
       totalConsumption: 0,
       avgCallDuration: 0
@@ -250,11 +325,75 @@ function getStatistics() {
   })
 }
 
-// 查询用户列表
-function getUserList() {
-  listUser().then(response => {
-    userList.value = response.rows || []
+// 获取公司列表
+function fetchCompanyList() {
+  getCompanyList().then(response => {
+    companyList.value = response.data || []
   })
+}
+
+// 获取部长列表
+function fetchMinisterList(companyUserId) {
+  if (companyUserId) {
+    getMinisterList(companyUserId).then(response => {
+      ministerList.value = response.data || []
+    })
+  } else {
+    ministerList.value = []
+  }
+}
+
+// 获取业务员列表（指定部长的下属）
+function fetchSalesmanList(ministerUserId) {
+  if (ministerUserId) {
+    // 查询指定部长下的业务员
+    listUser({ parentUserId: ministerUserId, roleId: 2 }).then(response => {
+      salesmanList.value = response.rows || []
+    })
+  } else if (queryParams.value.companyUserId) {
+    // 如果选了公司但没选部长，查询该公司下的所有业务员
+    listUser({ companyUserId: queryParams.value.companyUserId, roleId: 2 }).then(response => {
+      salesmanList.value = response.rows || []
+    })
+  } else {
+    salesmanList.value = []
+  }
+}
+
+// 公司选择变化
+function handleCompanyChange(companyUserId) {
+  // 清空部长和业务员选择
+  queryParams.value.ministerUserId = null
+  queryParams.value.salesmanUserId = null
+  ministerList.value = []
+  salesmanList.value = []
+  
+  // 加载该公司下的部长列表
+  if (companyUserId) {
+    fetchMinisterList(companyUserId)
+    fetchSalesmanList(null) // 加载该公司下的所有业务员
+  }
+  
+  // 自动刷新统计数据
+  getStatistics()
+}
+
+// 部长选择变化
+function handleMinisterChange(ministerUserId) {
+  // 清空业务员选择
+  queryParams.value.salesmanUserId = null
+  salesmanList.value = []
+  
+  // 加载该部长下的业务员列表
+  if (ministerUserId) {
+    fetchSalesmanList(ministerUserId)
+  } else if (queryParams.value.companyUserId) {
+    // 如果清空了部长但还有公司，加载公司下的所有业务员
+    fetchSalesmanList(null)
+  }
+  
+  // 自动刷新统计数据
+  getStatistics()
 }
 
 // 查询
@@ -265,9 +404,13 @@ function handleQuery() {
 // 重置
 function resetQuery() {
   queryParams.value = {
-    userId: null
+    companyUserId: null,
+    ministerUserId: null,
+    salesmanUserId: null
   }
   dateRange.value = []
+  ministerList.value = []
+  salesmanList.value = []
   getStatistics()
 }
 
@@ -323,10 +466,13 @@ function initStatusChart() {
           show: false
         },
         data: [
-          { value: statistics.value.answeredCount, name: '接听', itemStyle: { color: '#4facfe' } },
+          { value: statistics.value.notDialedCount, name: '未拨号', itemStyle: { color: '#fcb69f' } },
+          { value: statistics.value.dialedCount, name: '已拨号', itemStyle: { color: '#fed6e3' } },
+          { value: statistics.value.answeredCount, name: '已接听', itemStyle: { color: '#4facfe' } },
+          { value: statistics.value.unansweredCount, name: '未接听', itemStyle: { color: '#ffc371' } },
           { value: statistics.value.rejectedCount, name: '拒接', itemStyle: { color: '#ff6b6b' } },
-          { value: statistics.value.emptyNumberCount, name: '空号', itemStyle: { color: '#fed6e3' } },
-          { value: statistics.value.notDialedCount, name: '未拨号', itemStyle: { color: '#fcb69f' } }
+          { value: statistics.value.emptyNumberCount, name: '空号', itemStyle: { color: '#8ec5fc' } },
+          { value: statistics.value.suspendedCount, name: '停机', itemStyle: { color: '#b490ca' } }
         ]
       }
     ]
@@ -361,9 +507,13 @@ function initDataChart() {
     },
     xAxis: {
       type: 'category',
-      data: ['接听', '拒接', '空号', '未拨号'],
+      data: ['未拨号', '已拨号', '已接听', '未接听', '拒接', '空号', '停机'],
       axisTick: {
         alignWithLabel: true
+      },
+      axisLabel: {
+        rotate: 30,
+        interval: 0
       }
     },
     yAxis: {
@@ -375,10 +525,13 @@ function initDataChart() {
         type: 'bar',
         barWidth: '60%',
         data: [
+          { value: statistics.value.notDialedCount, itemStyle: { color: '#fcb69f' } },
+          { value: statistics.value.dialedCount, itemStyle: { color: '#fed6e3' } },
           { value: statistics.value.answeredCount, itemStyle: { color: '#4facfe' } },
+          { value: statistics.value.unansweredCount, itemStyle: { color: '#ffc371' } },
           { value: statistics.value.rejectedCount, itemStyle: { color: '#ff6b6b' } },
-          { value: statistics.value.emptyNumberCount, itemStyle: { color: '#fed6e3' } },
-          { value: statistics.value.notDialedCount, itemStyle: { color: '#fcb69f' } }
+          { value: statistics.value.emptyNumberCount, itemStyle: { color: '#8ec5fc' } },
+          { value: statistics.value.suspendedCount, itemStyle: { color: '#b490ca' } }
         ]
       }
     ]
@@ -394,7 +547,7 @@ window.addEventListener('resize', () => {
 })
 
 onMounted(() => {
-  getUserList()
+  fetchCompanyList()
   getStatistics()
 })
 </script>

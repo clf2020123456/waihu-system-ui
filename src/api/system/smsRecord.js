@@ -42,3 +42,12 @@ export function delSmsRecord(id) {
     method: 'delete'
   })
 }
+
+// 获取短信统计数据
+export function getSmsStatistics(query) {
+  return request({
+    url: '/system/smsRecord/statistics',
+    method: 'get',
+    params: query
+  })
+}
