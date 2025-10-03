@@ -124,7 +124,20 @@
       <el-table-column label="手机号" align="center" prop="phone" />
       <el-table-column label="消费金额" align="center" prop="consumptionAmount" />
       <el-table-column label="通话时长" align="center" prop="callDuration" />
-      <el-table-column label="通话录音文件url" align="center" prop="callRecordingUrl" />
+      <el-table-column label="通话录音" align="center" prop="callRecordingUrl" width="280">
+        <template #default="scope">
+          <audio 
+            v-if="scope.row.callRecordingUrl" 
+            :src="scope.row.callRecordingUrl" 
+            controls 
+            style="width: 250px; height: 32px;"
+            preload="none"
+          >
+            您的浏览器不支持音频播放
+          </audio>
+          <span v-else style="color: #909399;">无录音</span>
+        </template>
+      </el-table-column>
       <el-table-column label="备注" align="center" prop="remark" />
       <el-table-column label="操作" align="center" class-name="small-padding fixed-width">
         <template #default="scope">

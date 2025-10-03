@@ -18,6 +18,14 @@
 
         <screenfull id="screenfull" class="right-menu-item hover-effect" />
 
+        <el-tooltip content="待办事项" effect="dark" placement="bottom">
+          <el-badge :value="unreadCount" :hidden="unreadCount === 0" class="right-menu-item hover-effect">
+            <el-icon :size="20" @click="showTodoDialog">
+              <Bell />
+            </el-icon>
+          </el-badge>
+        </el-tooltip>
+
         <el-tooltip content="主题模式" effect="dark" placement="bottom">
           <div class="right-menu-item hover-effect theme-switch-wrapper" @click="toggleTheme">
             <svg-icon v-if="settingsStore.isDark" icon-class="sunny" />
@@ -50,11 +58,63 @@
         <svg-icon icon-class="more-up" />
       </div>
     </div>
+
+    <!-- 待办事项弹窗 -->
+    <el-dialog title="我的待办事项" v-model="todoDialogVisible" width="900px" append-to-body>
+      <el-table v-loading="todoLoading" :data="todoList" @row-click="handleTodoRowClick">
+        <el-table-column label="状态" align="center" width="80">
+          <template #default="scope">
+            <el-tag v-if="scope.row.status === '0'" type="warning">未读</el-tag>
+            <el-tag v-else type="success">已读</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="标题" align="center" prop="title" />
+        <el-table-column label="客户" align="center" prop="customerName" width="120" />
+        <el-table-column label="手机号" align="center" prop="customerPhone" width="120" />
+        <el-table-column label="提醒时间" align="center" prop="remindTime" width="180">
+          <template #default="scope">
+            {{ formatDateTime(scope.row.remindTime) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" align="center" width="150">
+          <template #default="scope">
+            <el-button 
+              v-if="scope.row.status === '0'" 
+              link 
+              type="primary" 
+              @click.stop="handleMarkAsRead(scope.row.id)"
+            >标记已读</el-button>
+            <el-button 
+              link 
+              type="danger" 
+              @click.stop="handleDeleteTodo(scope.row.id)"
+            >删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <pagination
+        v-show="todoTotal > 0"
+        :total="todoTotal"
+        v-model:page="todoQueryParams.pageNum"
+        v-model:limit="todoQueryParams.pageSize"
+        @pagination="getTodoList"
+      />
+
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="handleBatchMarkAsRead" type="primary" :disabled="todoList.filter(item => item.status === '0').length === 0">全部已读</el-button>
+          <el-button @click="todoDialogVisible = false">关 闭</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { ElMessageBox } from 'element-plus'
+import { Bell } from '@element-plus/icons-vue'
 import Breadcrumb from '@/components/Breadcrumb'
 import TopNav from '@/components/TopNav'
 import Hamburger from '@/components/Hamburger'
@@ -66,10 +126,25 @@ import RuoYiDoc from '@/components/RuoYi/Doc'
 import useAppStore from '@/store/modules/app'
 import useUserStore from '@/store/modules/user'
 import useSettingsStore from '@/store/modules/settings'
+import { getUnreadCount, listTodoItem, markAsRead, batchMarkAsRead, delTodoItem } from '@/api/system/todoItem'
 
 const appStore = useAppStore()
 const userStore = useUserStore()
 const settingsStore = useSettingsStore()
+
+// 待办事项相关
+const unreadCount = ref(0)
+const todoDialogVisible = ref(false)
+const todoLoading = ref(false)
+const todoList = ref([])
+const todoTotal = ref(0)
+const todoQueryParams = reactive({
+  pageNum: 1,
+  pageSize: 10,
+  status: null
+})
+
+let pollingTimer = null
 
 function toggleSideBar() {
   appStore.toggleSideBar()
@@ -108,6 +183,106 @@ function setLayout() {
 function toggleTheme() {
   settingsStore.toggleTheme()
 }
+
+// 获取未读待办事项数量
+function loadUnreadCount() {
+  getUnreadCount().then(res => {
+    unreadCount.value = res.data
+  }).catch(err => {
+    console.error('获取未读待办事项数量失败:', err)
+  })
+}
+
+// 显示待办事项弹窗
+function showTodoDialog() {
+  todoDialogVisible.value = true
+  getTodoList()
+}
+
+// 获取待办事项列表
+function getTodoList() {
+  todoLoading.value = true
+  listTodoItem(todoQueryParams).then(res => {
+    todoList.value = res.rows
+    todoTotal.value = res.total
+    todoLoading.value = false
+  }).catch(err => {
+    console.error('获取待办事项列表失败:', err)
+    todoLoading.value = false
+  })
+}
+
+// 标记单个为已读
+function handleMarkAsRead(id) {
+  markAsRead(id).then(() => {
+    ElMessageBox.success('已标记为已读')
+    getTodoList()
+    loadUnreadCount()
+  }).catch(err => {
+    console.error('标记已读失败:', err)
+  })
+}
+
+// 批量标记为已读
+function handleBatchMarkAsRead() {
+  const unreadIds = todoList.value.filter(item => item.status === '0').map(item => item.id)
+  if (unreadIds.length === 0) {
+    return
+  }
+  batchMarkAsRead(unreadIds).then(() => {
+    ElMessageBox.success('已全部标记为已读')
+    getTodoList()
+    loadUnreadCount()
+  }).catch(err => {
+    console.error('批量标记已读失败:', err)
+  })
+}
+
+// 删除待办事项
+function handleDeleteTodo(id) {
+  ElMessageBox.confirm('确定要删除该待办事项吗？', '提示', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'warning'
+  }).then(() => {
+    delTodoItem(id).then(() => {
+      ElMessageBox.success('删除成功')
+      getTodoList()
+      loadUnreadCount()
+    }).catch(err => {
+      console.error('删除待办事项失败:', err)
+    })
+  }).catch(() => {})
+}
+
+// 点击行标记已读
+function handleTodoRowClick(row) {
+  if (row.status === '0') {
+    handleMarkAsRead(row.id)
+  }
+}
+
+// 格式化日期时间
+function formatDateTime(dateTime) {
+  if (!dateTime) return ''
+  return dateTime
+}
+
+// 页面加载时获取未读数量
+onMounted(() => {
+  loadUnreadCount()
+  // 每30秒轮询一次未读数量
+  pollingTimer = setInterval(() => {
+    loadUnreadCount()
+  }, 30000)
+})
+
+// 组件卸载时清除定时器
+onUnmounted(() => {
+  if (pollingTimer) {
+    clearInterval(pollingTimer)
+  }
+})
 </script>
 
 <style lang='scss' scoped>
@@ -182,6 +357,19 @@ function toggleTheme() {
           &:hover {
             transform: scale(1.15);
           }
+        }
+      }
+    }
+
+    :deep(.el-badge) {
+      line-height: 50px;
+      
+      .el-icon {
+        cursor: pointer;
+        transition: transform 0.3s;
+        
+        &:hover {
+          transform: scale(1.15);
         }
       }
     }

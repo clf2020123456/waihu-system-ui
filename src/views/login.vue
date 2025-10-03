@@ -118,7 +118,11 @@ function handleLogin() {
         Cookies.remove("rememberMe")
       }
       // 调用action的登录方法
-      userStore.login(loginForm.value).then(() => {
+      userStore.login(loginForm.value).then((res) => {
+        // 如果有到期警告信息，显示提醒
+        if (res && res.expiryWarning) {
+          proxy.$modal.msgWarning(res.expiryWarning)
+        }
         const query = route.query
         const otherQueryParams = Object.keys(query).reduce((acc, cur) => {
           if (cur !== "redirect") {
