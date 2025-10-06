@@ -156,6 +156,24 @@
           v-hasPermi="['system:customer:edit']"
         >管理标签</el-button>
       </el-col>
+      <el-col :span="1.5">
+        <el-button
+          type="success"
+          plain
+          icon="Phone"
+          @click="showInstantCallDialog"
+          v-hasPermi="['system:customer:edit']"
+        >一键拨号</el-button>
+      </el-col>
+      <el-col :span="1.5">
+        <el-button
+          type="warning"
+          plain
+          icon="Message"
+          @click="showInstantSmsDialog"
+          v-hasPermi="['system:customer:edit']"
+        >一键短信</el-button>
+      </el-col>
       <right-toolbar v-model:showSearch="showSearch" @queryTable="getList"></right-toolbar>
     </el-row>
 
@@ -176,6 +194,7 @@
         </template>
       </el-table-column>
       <el-table-column label="消费金额" align="center" prop="consumptionAmount" sortable="custom" />
+      <el-table-column label="默认短信" align="center" prop="defaultSmsContent" :show-overflow-tooltip="true" />
       <!-- <el-table-column label="所属用户ID" align="center" prop="userId" />
       <el-table-column label="所属集团用户ID" align="center" prop="groupUserId" /> -->
       <el-table-column label="创建时间" align="center" prop="createTime" sortable="custom" />
@@ -225,6 +244,9 @@
         </el-form-item>
         <el-form-item label="消费金额" prop="consumptionAmount">
           <el-input v-model="form.consumptionAmount" placeholder="请输入消费金额" />
+        </el-form-item>
+        <el-form-item label="默认短信" prop="defaultSmsContent">
+          <el-input v-model="form.defaultSmsContent" type="textarea" :rows="3" placeholder="请输入默认短信内容" maxlength="500" show-word-limit />
         </el-form-item>
         <!-- <el-form-item label="所属用户ID" prop="userId">
           <el-input v-model="form.userId" placeholder="请输入所属用户ID" />
@@ -276,8 +298,14 @@
 
     <!-- 短信内容输入对话框 -->
     <el-dialog title="批量短信" v-model="smsDialogVisible" width="500px" append-to-body>
-      <el-form label-width="80px">
-        <el-form-item label="短信内容">
+      <el-form label-width="100px">
+        <el-form-item label="短信类型">
+          <el-radio-group v-model="smsType">
+            <el-radio label="default">使用默认短信</el-radio>
+            <el-radio label="custom">自定义短信</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="短信内容" v-if="smsType === 'custom'">
           <el-input
             v-model="smsContent"
             type="textarea"
@@ -285,6 +313,14 @@
             placeholder="请输入短信内容"
             maxlength="500"
             show-word-limit
+          />
+        </el-form-item>
+        <el-form-item label="说明" v-if="smsType === 'default'">
+          <el-alert
+            title="将使用每个客户的默认短信内容进行发送"
+            type="info"
+            :closable="false"
+            show-icon
           />
         </el-form-item>
         <el-form-item label="发送对象">
@@ -295,6 +331,46 @@
         <div class="dialog-footer">
           <el-button @click="smsDialogVisible = false">取 消</el-button>
           <el-button type="primary" @click="confirmBatchSms">确 定</el-button>
+        </div>
+      </template>
+    </el-dialog>
+
+    <!-- 一键拨号对话框 -->
+    <el-dialog title="一键拨号" v-model="instantCallDialogVisible" width="500px" append-to-body>
+      <el-form label-width="80px">
+        <el-form-item label="手机号" required>
+          <el-input v-model="instantCallPhone" placeholder="请输入要拨打的手机号" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="instantCallDialogVisible = false">取 消</el-button>
+          <el-button type="primary" @click="confirmInstantCall">确 定</el-button>
+        </div>
+      </template>
+    </el-dialog>
+
+    <!-- 一键短信对话框 -->
+    <el-dialog title="一键短信" v-model="instantSmsDialogVisible" width="500px" append-to-body>
+      <el-form label-width="80px">
+        <el-form-item label="手机号" required>
+          <el-input v-model="instantSmsPhone" placeholder="请输入要发送的手机号" />
+        </el-form-item>
+        <el-form-item label="短信内容" required>
+          <el-input
+            v-model="instantSmsContent"
+            type="textarea"
+            :rows="5"
+            placeholder="请输入短信内容"
+            maxlength="500"
+            show-word-limit
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="instantSmsDialogVisible = false">取 消</el-button>
+          <el-button type="primary" @click="confirmInstantSms">确 定</el-button>
         </div>
       </template>
     </el-dialog>
@@ -346,6 +422,7 @@ import { listCustomer, getCustomer, delCustomer, addCustomer, updateCustomer, ex
 import { addTask } from "@/api/system/task"
 import { addTaskCustomerRelation } from "@/api/system/taskCustomerRelation"
 import { getTagsByUser, addUserDefinedTag, delUserDefinedTag } from '@/api/system/userDefinedTag'
+import { addInstantRequest } from '@/api/system/instantRequest'
 import FollowUpDialog from './components/FollowUpDialog.vue'
 
 const { proxy } = getCurrentInstance()
@@ -502,6 +579,12 @@ const importUrl = ref('')
 const hasFileSelected = ref(false)
 const smsDialogVisible = ref(false)
 const smsContent = ref('')
+const smsType = ref('default') // 短信类型：default-默认短信，custom-自定义短信
+const instantCallDialogVisible = ref(false)
+const instantCallPhone = ref('')
+const instantSmsDialogVisible = ref(false)
+const instantSmsPhone = ref('')
+const instantSmsContent = ref('')
 
 const data = reactive({
   form: {},
@@ -659,12 +742,14 @@ function submitForm() {
 function handleBatchSms() {
   // 显示短信内容输入对话框
   smsContent.value = ''
+  smsType.value = 'default' // 默认选择使用默认短信
   smsDialogVisible.value = true
 }
 
 /** 确认发送批量短信 */
 function confirmBatchSms() {
-  if (!smsContent.value || smsContent.value.trim() === '') {
+  // 如果是自定义短信，需要验证短信内容
+  if (smsType.value === 'custom' && (!smsContent.value || smsContent.value.trim() === '')) {
     proxy.$modal.msgWarning('请输入短信内容')
     return
   }
@@ -674,16 +759,23 @@ function confirmBatchSms() {
     taskName: `批量短信任务_${new Date().getTime()}`,
     taskStatus: '0', // 0待处理
     randomInterval: 2, // 随机间隔2秒
-    remark: `批量发送短信给${ids.value.length}个客户`,
+    remark: smsType.value === 'default' 
+      ? `批量发送默认短信给${ids.value.length}个客户` 
+      : `批量发送自定义短信给${ids.value.length}个客户`,
     customerIds: ids.value, // 客户ID列表
     type: '2', // 2=短信任务类型
-    smsContent: smsContent.value.trim() // 短信内容
+    useDefaultSms: smsType.value === 'default' ? '1' : '0', // 是否使用默认短信
+    smsContent: smsType.value === 'custom' ? smsContent.value.trim() : '' // 自定义短信内容
   }
   
   addTask(task).then(() => {
-    proxy.$modal.msgSuccess(`批量短信任务创建成功，已为${ids.value.length}个客户建立任务关联`)
+    const msg = smsType.value === 'default' 
+      ? `批量短信任务创建成功，将使用客户默认短信发送给${ids.value.length}个客户` 
+      : `批量短信任务创建成功，已为${ids.value.length}个客户建立任务关联`
+    proxy.$modal.msgSuccess(msg)
     smsDialogVisible.value = false
     smsContent.value = ''
+    smsType.value = 'default'
   }).catch(error => {
     console.error('批量短信任务创建失败:', error)
     proxy.$modal.msgError('批量短信任务创建失败，请重试')
@@ -695,7 +787,7 @@ function handleBatchCall() {
   proxy.$modal.confirm('是否确认为选中的' + ids.value.length + '个客户创建批量电话任务？').then(function() {
     // 创建任务并直接包含客户ID列表和任务类型
     const task = {
-      taskName: `批量电话任务_${new Date().getTime()}`,
+      taskName: `批量电话任务_${new Date().getTime()}`.slice(0, 12),//获取6位数字
       taskStatus: '0', // 0待处理
       randomInterval: 10, // 随机间隔20秒
       remark: `批量拨打电话给${ids.value.length}个客户`,
@@ -800,6 +892,86 @@ function handleImportSuccess(response) {
 function handleImportError(error) {
   console.error('导入失败:', error)
   proxy.$modal.msgError('导入失败，请检查文件格式是否正确')
+}
+
+/** 显示一键拨号对话框 */
+function showInstantCallDialog() {
+  instantCallPhone.value = ''
+  instantCallDialogVisible.value = true
+}
+
+/** 确认一键拨号 */
+function confirmInstantCall() {
+  if (!instantCallPhone.value || instantCallPhone.value.trim() === '') {
+    proxy.$modal.msgWarning('请输入手机号')
+    return
+  }
+  
+  // 简单验证手机号格式
+  const phoneRegex = /^1[3-9]\d{9}$/
+  if (!phoneRegex.test(instantCallPhone.value.trim())) {
+    proxy.$modal.msgWarning('请输入正确的手机号格式')
+    return
+  }
+  
+  const request = {
+    phone: instantCallPhone.value.trim(),
+    requestType: '1', // 1=拨号
+    remark: '一键拨号'
+  }
+  
+  addInstantRequest(request).then(() => {
+    proxy.$modal.msgSuccess('拨号请求已发送，请在手机端查看')
+    instantCallDialogVisible.value = false
+    instantCallPhone.value = ''
+  }).catch(error => {
+    console.error('一键拨号请求创建失败:', error)
+    proxy.$modal.msgError('拨号请求创建失败，请重试')
+  })
+}
+
+/** 显示一键短信对话框 */
+function showInstantSmsDialog() {
+  instantSmsPhone.value = ''
+  instantSmsContent.value = ''
+  instantSmsDialogVisible.value = true
+}
+
+/** 确认发送一键短信 */
+function confirmInstantSms() {
+  if (!instantSmsPhone.value || instantSmsPhone.value.trim() === '') {
+    proxy.$modal.msgWarning('请输入手机号')
+    return
+  }
+  
+  // 简单验证手机号格式
+  const phoneRegex = /^1[3-9]\d{9}$/
+  if (!phoneRegex.test(instantSmsPhone.value.trim())) {
+    proxy.$modal.msgWarning('请输入正确的手机号格式')
+    return
+  }
+  
+  if (!instantSmsContent.value || instantSmsContent.value.trim() === '') {
+    proxy.$modal.msgWarning('请输入短信内容')
+    return
+  }
+  
+  const request = {
+    phone: instantSmsPhone.value.trim(),
+    requestType: '2', // 2=短信
+    smsContent: instantSmsContent.value.trim(),
+    remark: '一键短信'
+  }
+  
+  addInstantRequest(request).then(() => {
+    proxy.$modal.msgSuccess('短信请求已发送，请在手机端查看')
+    instantSmsDialogVisible.value = false
+    instantSmsPhone.value = ''
+    instantSmsContent.value = ''
+  }).catch(error => {
+    console.error('一键短信请求创建失败:', error)
+    proxy.$modal.msgError('短信请求创建失败，请重试')
+  })
 }
 
 // 页面加载时立即初始化标签数据

@@ -94,6 +94,22 @@
         </template>
       </el-table-column>
       <el-table-column label="随机时间间隔" align="center" prop="randomInterval" />
+      <el-table-column label="短信模式" align="center" prop="useDefaultSms" width="120">
+        <template #default="scope">
+          <el-tag v-if="scope.row.taskName && scope.row.taskName.includes('短信')" :type="scope.row.useDefaultSms === '1' ? 'success' : 'primary'">
+            {{ scope.row.useDefaultSms === '1' ? '客户默认' : '自定义' }}
+          </el-tag>
+          <span v-else>-</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="短信内容" align="center" prop="smsContent" :show-overflow-tooltip="true" width="150">
+        <template #default="scope">
+          <span v-if="scope.row.taskName && scope.row.taskName.includes('短信') && scope.row.useDefaultSms === '0'">
+            {{ scope.row.smsContent || '-' }}
+          </span>
+          <span v-else>-</span>
+        </template>
+      </el-table-column>
       <el-table-column label="操作" align="center" class-name="small-padding fixed-width">
         <template #default="scope">
           <el-button link type="primary" icon="Edit" @click="handleUpdate(scope.row)" v-hasPermi="['system:task:edit']">修改</el-button>
@@ -131,6 +147,25 @@
         </el-form-item>
         <el-form-item label="随机时间间隔" prop="randomInterval">
           <el-input v-model="form.randomInterval" placeholder="请输入随机时间间隔" />
+        </el-form-item>
+        <el-form-item label="短信模式" prop="useDefaultSms" v-if="form.taskName && form.taskName.includes('短信')">
+          <el-radio-group v-model="form.useDefaultSms">
+            <el-radio label="1">使用客户默认短信</el-radio>
+            <el-radio label="0">自定义统一短信</el-radio>
+          </el-radio-group>
+          <div style="color: #999; font-size: 12px; margin-top: 5px;">
+            选择"使用客户默认短信"将为每个客户发送其设置的默认短信内容
+          </div>
+        </el-form-item>
+        <el-form-item label="短信内容" prop="smsContent" v-if="form.taskName && form.taskName.includes('短信') && form.useDefaultSms === '0'">
+          <el-input 
+            v-model="form.smsContent" 
+            type="textarea" 
+            :rows="4" 
+            placeholder="请输入短信内容（所有客户将收到相同的短信）" 
+            maxlength="500" 
+            show-word-limit 
+          />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -211,6 +246,8 @@ function reset() {
     taskName: null,
     taskStatus: null,
     randomInterval: null,
+    smsContent: null,
+    useDefaultSms: '0',
     createTime: null
   }
   proxy.resetForm("taskRef")
