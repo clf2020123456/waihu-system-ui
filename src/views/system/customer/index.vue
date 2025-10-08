@@ -115,7 +115,6 @@
           plain
           icon="Download"
           @click="handleDownloadTemplate"
-          v-hasPermi="['system:customer:import']"
         >下载模板</el-button>
       </el-col>
       <el-col :span="1.5">
@@ -124,7 +123,6 @@
           plain
           icon="Upload"
           @click="handleImport"
-          v-hasPermi="['system:customer:import']"
         >导入</el-button>
       </el-col>
       <el-col :span="1.5">
@@ -134,7 +132,6 @@
           icon="Message"
           :disabled="multiple"
           @click="handleBatchSms"
-          v-hasPermi="['system:task:add', 'system:taskCustomerRelation:add']"
         >批量短信</el-button>
       </el-col>
       <el-col :span="1.5">
@@ -144,7 +141,6 @@
           icon="Phone"
           :disabled="multiple"
           @click="handleBatchCall"
-          v-hasPermi="['system:task:add', 'system:taskCustomerRelation:add']"
         >批量电话</el-button>
       </el-col>
       <el-col :span="1.5">

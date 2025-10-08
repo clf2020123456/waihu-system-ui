@@ -150,3 +150,11 @@ export function getMinisterList(companyUserId) {
     method: 'get'
   })
 }
+
+// 根据公司ID获取公司下的所有用户（用于选择上级）
+export function getCompanyUserList(companyUserId) {
+  return request({
+    url: '/system/user/companyUserList/' + companyUserId,
+    method: 'get'
+  })
+}

@@ -3,7 +3,7 @@
     <el-row :gutter="20">
       <splitpanes :horizontal="appStore.device === 'mobile'" class="default-theme">
         <!--部门数据-->
-        <pane size="16">
+        <!-- <pane size="16">
           <el-col>
             <div class="head-container">
               <el-input v-model="deptName" placeholder="请输入部门名称" clearable prefix-icon="Search" style="margin-bottom: 20px" />
@@ -12,7 +12,7 @@
               <el-tree :data="deptOptions" :props="{ label: 'label', children: 'children' }" :expand-on-click-node="false" :filter-node-method="filterNode" ref="deptTreeRef" node-key="id" highlight-current default-expand-all @node-click="handleNodeClick" />
             </div>
           </el-col>
-        </pane>
+        </pane> -->
         <!--用户数据-->
         <pane size="84">
           <el-col>
@@ -26,6 +26,11 @@
               <el-form-item label="状态" prop="status">
                 <el-select v-model="queryParams.status" placeholder="用户状态" clearable style="width: 240px">
                   <el-option v-for="dict in sys_normal_disable" :key="dict.value" :label="dict.label" :value="dict.value" />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="角色" prop="roleId">
+                <el-select v-model="queryParams.roleId" placeholder="请选择角色" clearable style="width: 240px">
+                  <el-option v-for="item in roleOptions" :key="item.roleId" :label="item.roleName" :value="item.roleId"></el-option>
                 </el-select>
               </el-form-item>
               <el-form-item label="创建时间" style="width: 308px">
@@ -47,12 +52,12 @@
               <el-col :span="1.5">
                 <el-button type="danger" plain icon="Delete" :disabled="multiple" @click="handleDelete" v-hasPermi="['system:user:remove']">删除</el-button>
               </el-col>
-              <el-col :span="1.5">
+              <!-- <el-col :span="1.5">
                 <el-button type="info" plain icon="Upload" @click="handleImport" v-hasPermi="['system:user:import']">导入</el-button>
               </el-col>
               <el-col :span="1.5">
                 <el-button type="warning" plain icon="Download" @click="handleExport" v-hasPermi="['system:user:export']">导出</el-button>
-              </el-col>
+              </el-col> -->
               <right-toolbar v-model:showSearch="showSearch" @queryTable="getList" :columns="columns"></right-toolbar>
             </el-row>
 
@@ -61,8 +66,9 @@
               <el-table-column label="用户编号" align="center" key="userId" prop="userId" v-if="columns[0].visible" />
               <el-table-column label="用户名称" align="center" key="userName" prop="userName" v-if="columns[1].visible" :show-overflow-tooltip="true" />
               <el-table-column label="用户昵称" align="center" key="nickName" prop="nickName" v-if="columns[2].visible" :show-overflow-tooltip="true" />
-              <el-table-column label="手机号码" align="center" key="phonenumber" prop="phonenumber" v-if="columns[3].visible" width="120" />
-              <el-table-column label="状态" align="center" key="status" v-if="columns[4].visible">
+              <el-table-column label="角色" align="center" key="roleName" prop="roleName" v-if="columns[3].visible" :show-overflow-tooltip="true" />
+              <el-table-column label="手机号码" align="center" key="phonenumber" prop="phonenumber" v-if="columns[4].visible" width="120" />
+              <el-table-column label="状态" align="center" key="status" v-if="columns[5].visible">
                 <template #default="scope">
                   <el-switch
                     v-model="scope.row.status"
@@ -72,7 +78,7 @@
                   ></el-switch>
                 </template>
               </el-table-column>
-              <el-table-column label="创建时间" align="center" prop="createTime" v-if="columns[5].visible" width="160">
+              <el-table-column label="创建时间" align="center" prop="createTime" v-if="columns[6].visible" width="160">
                 <template #default="scope">
                   <span>{{ parseTime(scope.row.createTime) }}</span>
                 </template>
@@ -112,6 +118,22 @@
             </el-form-item>
           </el-col>
         </el-row>
+        <!-- 归属部门已注释 - 用户不需要选择部门 -->
+        <!-- <el-row>
+          <el-col :span="24">
+            <el-form-item label="归属部门" prop="deptId">
+              <el-tree-select
+                v-model="form.deptId"
+                :data="enabledDeptOptions"
+                :props="{ value: 'id', label: 'label', children: 'children' }"
+                value-key="id"
+                placeholder="请选择归属部门"
+                check-strictly
+                clearable
+              />
+            </el-form-item>
+          </el-col>
+        </el-row> -->
         <el-row>
           <el-col :span="24">
             <el-form-item label="用户昵称" prop="nickName">
@@ -159,18 +181,18 @@
             </el-form-item>
           </el-col>
         </el-row>
-        <el-row>
+        <el-row v-if="needShowCompanySelect">
           <el-col :span="12">
-            <el-form-item label="公司管理员" prop="companyUserId" >
-              <el-select v-model="form.companyUserId" placeholder="请选择公司管理员" clearable @change="handleCompanyChange">
+            <el-form-item label="所属公司" prop="companyUserId">
+              <el-select v-model="form.companyUserId" placeholder="请选择所属公司" clearable @change="handleCompanyChange">
                 <el-option v-for="item in companyList" :key="item.userId" :label="item.nickName" :value="item.userId"></el-option>
               </el-select>
             </el-form-item>
           </el-col>
-          <el-col :span="12">
-            <el-form-item label="上级" prop="parentUserId" >
+          <el-col :span="12" v-if="needShowParentSelect">
+            <el-form-item label="上级" prop="parentUserId">
               <el-select v-model="form.parentUserId" placeholder="请选择上级" clearable>
-                <el-option v-for="item in ministerList" :key="item.userId" :label="item.nickName" :value="item.userId"></el-option>
+                <el-option v-for="item in parentUserList" :key="item.userId" :label="item.nickName" :value="item.userId"></el-option>
               </el-select>
             </el-form-item>
           </el-col>
@@ -231,7 +253,7 @@
 <script setup name="User">
 import { getToken } from "@/utils/auth"
 import useAppStore from '@/store/modules/app'
-import { changeUserStatus, listUser, resetUserPwd, delUser, getUser, updateUser, addUser, deptTreeSelect, getCompanyList as fetchCompanyList, getMinisterList as fetchMinisterList } from "@/api/system/user"
+import { changeUserStatus, listUser, resetUserPwd, delUser, getUser, updateUser, addUser, deptTreeSelect, getCompanyList as fetchCompanyList, getCompanyUserList as fetchCompanyUserList } from "@/api/system/user"
 import { Splitpanes, Pane } from "splitpanes"
 import "splitpanes/dist/splitpanes.css"
 
@@ -256,7 +278,7 @@ const enabledDeptOptions = ref(undefined)
 const initPassword = ref(undefined)
 const roleOptions = ref([])
 const companyList = ref([])
-const ministerList = ref([])
+const parentUserList = ref([])
 /*** 用户导入参数 */
 const upload = reactive({
   // 是否显示弹出层（用户导入）
@@ -277,9 +299,10 @@ const columns = ref([
   { key: 0, label: `用户编号`, visible: true },
   { key: 1, label: `用户名称`, visible: true },
   { key: 2, label: `用户昵称`, visible: true },
-  { key: 3, label: `手机号码`, visible: true },
-  { key: 4, label: `状态`, visible: true },
-  { key: 5, label: `创建时间`, visible: true }
+  { key: 3, label: `角色`, visible: true },
+  { key: 4, label: `手机号码`, visible: true },
+  { key: 5, label: `状态`, visible: true },
+  { key: 6, label: `创建时间`, visible: true }
 ])
 
 const data = reactive({
@@ -290,6 +313,7 @@ const data = reactive({
     userName: undefined,
     phonenumber: undefined,
     status: undefined,
+    roleId: undefined,
     deptId: undefined
   },
   rules: {
@@ -301,9 +325,9 @@ const data = reactive({
     phonenumber: [{ pattern: /^1[3|4|5|6|7|8|9][0-9]\d{8}$/, message: "请输入正确的手机号码", trigger: "blur" }],
     companyUserId: [{ 
       validator: (rule, value, callback) => {
-        // 如果角色是公司管理员(101)或业务员(2)，公司管理员必填
+        // 如果角色是部长(101)或业务员(2)，且显示了公司选择，则公司必填
         if ((form.roleIds === 101 || form.roleIds === 2) && !value) {
-          callback(new Error('公司管理员不能为空'))
+          callback(new Error('所属公司不能为空'))
         } else {
           callback()
         }
@@ -312,8 +336,8 @@ const data = reactive({
     }],
     parentUserId: [{ 
       validator: (rule, value, callback) => {
-        // 如果角色是业务员(2)，上级必填
-        if (form.roleIds === 2 && !value) {
+        // 如果角色是业务员(2)且显示了上级选择，则上级必填
+        if (form.roleIds === 2 && form.companyUserId && !value) {
           callback(new Error('上级不能为空'))
         } else {
           callback()
@@ -331,9 +355,16 @@ const isCompanyManagerRole = computed(() => {
   return form.value.roleIds === 102
 })
 
-/** 判断是否显示上级选择（角色是业务员时显示） */
-const showParentSelect = computed(() => {
-  return form.value.roleIds === 2 && !isCompanyManagerRole.value
+/** 判断是否需要显示公司选择（超级管理员或子管理员新增部长或业务员时） */
+const needShowCompanySelect = computed(() => {
+  const roleId = form.value.roleIds
+  // 角色是部长(101)或业务员(2)时需要选择公司
+  return roleId === 101 || roleId === 2
+})
+
+/** 判断是否需要显示上级选择（新增业务员且已选择公司时） */
+const needShowParentSelect = computed(() => {
+  return form.value.roleIds === 2 && form.value.companyUserId
 })
 
 /** 通过条件过滤节点  */
@@ -542,38 +573,28 @@ function getCompanyList() {
   })
 }
 
-/** 获取公司管理员列表 */
-function getMinisterList(companyUserId) {
+/** 获取公司下的所有用户列表（用于选择上级） */
+function getParentUserList(companyUserId) {
   if (companyUserId) {
-    fetchMinisterList(companyUserId).then(response => {
-      ministerList.value = response.data
+    fetchCompanyUserList(companyUserId).then(response => {
+      parentUserList.value = response.data
     })
   } else {
-    ministerList.value = []
+    parentUserList.value = []
   }
 }
 
 /** 角色改变时的处理 */
 function handleRoleChange(roleId) {
-  // 如果选择了公司管理员角色，清空公司管理员和上级
-  if (form.value.roleIds === 102) {
-    form.value.companyUserId = undefined
-    form.value.parentUserId = undefined
-    form.value.deptId = undefined
-    ministerList.value = []
-  } else {
-    // 非公司管理员，加载公司列表
+  // 清空公司和上级选择
+  form.value.companyUserId = undefined
+  form.value.parentUserId = undefined
+  parentUserList.value = []
+  
+  // 如果选择的是部长或业务员角色，加载公司列表
+  if (form.value.roleIds === 101 || form.value.roleIds === 2) {
     if (companyList.value.length === 0) {
       getCompanyList()
-    }
-    
-    // 如果选择了业务员角色，且已经选择了公司管理员，则加载公司管理员列表
-    if (form.value.roleIds === 2 && form.value.companyUserId) {
-      getMinisterList(form.value.companyUserId)
-    } else if (form.value.roleIds !== 2) {
-      // 如果不是业务员角色，清空上级选择
-      form.value.parentUserId = undefined
-      ministerList.value = []
     }
   }
 }
@@ -582,11 +603,11 @@ function handleRoleChange(roleId) {
 function handleCompanyChange(companyUserId) {
   // 清空上级选择
   form.value.parentUserId = undefined
-  // 如果选择了公司，且角色是业务员，则加载该公司下的公司管理员列表
+  // 如果选择了公司，且角色是业务员，则加载该公司下的所有用户列表
   if (companyUserId && form.value.roleIds === 2) {
-    getMinisterList(companyUserId)
+    getParentUserList(companyUserId)
   } else {
-    ministerList.value = []
+    parentUserList.value = []
   }
 }
 
@@ -599,8 +620,6 @@ function handleAdd() {
     title.value = "添加用户"
     form.value.password = initPassword.value
   })
-  // 加载公司列表
-  getCompanyList()
 }
 
 /** 修改按钮操作 */
@@ -616,12 +635,14 @@ function handleUpdate(row) {
     title.value = "修改用户"
     form.password = ""
     
-    // 加载公司列表
-    getCompanyList()
-    
-    // 如果有公司管理员且角色是业务员，则加载公司管理员列表
-    if (form.value.companyUserId && form.value.roleIds === 2) {
-      getMinisterList(form.value.companyUserId)
+    // 如果角色需要显示公司选择，加载公司列表
+    if (form.value.roleIds === 101 || form.value.roleIds === 2) {
+      getCompanyList()
+      
+      // 如果有公司且角色是业务员，则加载该公司下的所有用户列表
+      if (form.value.companyUserId && form.value.roleIds === 2) {
+        getParentUserList(form.value.companyUserId)
+      }
     }
   })
 }
@@ -641,16 +662,12 @@ function submitForm() {
           proxy.$modal.msgSuccess("修改成功")
           open.value = false
           getList()
-          // 刷新部门树
-          getDeptTree()
         })
       } else {
         addUser(submitData).then(response => {
           proxy.$modal.msgSuccess("新增成功")
           open.value = false
           getList()
-          // 刷新部门树
-          getDeptTree()
         })
       }
     }
@@ -662,6 +679,10 @@ onMounted(() => {
   getList()
   proxy.getConfigKey("sys.user.initPassword").then(response => {
     initPassword.value = response.msg
+  })
+  // 获取角色列表供查询使用
+  getUser().then(response => {
+    roleOptions.value = response.roles
   })
 })
 </script>
