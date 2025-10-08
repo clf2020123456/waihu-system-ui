@@ -10,13 +10,13 @@
         />
       </el-form-item>
       <el-form-item label="是否开启" prop="isEnabled">
-        <el-select v-model="queryParams.isEnabled" placeholder="请选择是否开启" clearable>
+        <el-select v-model="queryParams.isEnabled" placeholder="请选择是否开启" clearable style="width: 12cqh;">
           <el-option label="开启" value="1" />
           <el-option label="关闭" value="0" />
         </el-select>
       </el-form-item>
       <el-form-item label="状态" prop="status">
-        <el-select v-model="queryParams.status" placeholder="请选择状态" clearable>
+        <el-select v-model="queryParams.status" placeholder="请选择状态" clearable style="width: 120px;">
           <el-option label="正常" value="0" />
           <el-option label="停用" value="1" />
         </el-select>

@@ -158,3 +158,11 @@ export function getCompanyUserList(companyUserId) {
     method: 'get'
   })
 }
+
+// 获取子管理员列表（仅超级管理员可用）
+export function getSubAdminList() {
+  return request({
+    url: '/system/user/subAdminList',
+    method: 'get'
+  })
+}

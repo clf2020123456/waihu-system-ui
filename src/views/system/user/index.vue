@@ -16,7 +16,7 @@
         <!--用户数据-->
         <pane size="84">
           <el-col>
-            <el-form :model="queryParams" ref="queryRef" :inline="true" v-show="showSearch" label-width="68px">
+            <el-form :model="queryParams" ref="queryRef" :inline="true" v-show="showSearch" label-width="100px">
               <el-form-item label="用户名称" prop="userName">
                 <el-input v-model="queryParams.userName" placeholder="请输入用户名称" clearable style="width: 240px" @keyup.enter="handleQuery" />
               </el-form-item>
@@ -31,6 +31,16 @@
               <el-form-item label="角色" prop="roleId">
                 <el-select v-model="queryParams.roleId" placeholder="请选择角色" clearable style="width: 240px">
                   <el-option v-for="item in roleOptions" :key="item.roleId" :label="item.roleName" :value="item.roleId"></el-option>
+                </el-select>
+              </el-form-item>
+              <el-form-item label="子管理员" prop="subAdminUserId" v-if="isAdmin">
+                <el-select v-model="queryParams.subAdminUserId" placeholder="请选择子管理员" clearable style="width: 240px">
+                  <el-option v-for="item in subAdminList" :key="item.userId" :label="item.nickName" :value="item.userId"></el-option>
+                </el-select>
+              </el-form-item>
+              <el-form-item label="公司管理员" prop="companyUserId">
+                <el-select v-model="queryParams.companyUserId" placeholder="请选择公司管理员" clearable style="width: 240px">
+                  <el-option v-for="item in companyList" :key="item.userId" :label="item.nickName" :value="item.userId"></el-option>
                 </el-select>
               </el-form-item>
               <el-form-item label="创建时间" style="width: 308px">
@@ -183,8 +193,8 @@
         </el-row>
         <el-row v-if="needShowCompanySelect">
           <el-col :span="12">
-            <el-form-item label="所属公司" prop="companyUserId">
-              <el-select v-model="form.companyUserId" placeholder="请选择所属公司" clearable @change="handleCompanyChange">
+            <el-form-item label="所属公司管理员" prop="companyUserId">
+              <el-select v-model="form.companyUserId" placeholder="请选择所属公司管理员" clearable @change="handleCompanyChange">
                 <el-option v-for="item in companyList" :key="item.userId" :label="item.nickName" :value="item.userId"></el-option>
               </el-select>
             </el-form-item>
@@ -253,12 +263,14 @@
 <script setup name="User">
 import { getToken } from "@/utils/auth"
 import useAppStore from '@/store/modules/app'
-import { changeUserStatus, listUser, resetUserPwd, delUser, getUser, updateUser, addUser, deptTreeSelect, getCompanyList as fetchCompanyList, getCompanyUserList as fetchCompanyUserList } from "@/api/system/user"
+import useUserStore from '@/store/modules/user'
+import { changeUserStatus, listUser, resetUserPwd, delUser, getUser, updateUser, addUser, deptTreeSelect, getCompanyList as fetchCompanyList, getCompanyUserList as fetchCompanyUserList, getSubAdminList as fetchSubAdminList } from "@/api/system/user"
 import { Splitpanes, Pane } from "splitpanes"
 import "splitpanes/dist/splitpanes.css"
 
 const router = useRouter()
 const appStore = useAppStore()
+const userStore = useUserStore()
 const { proxy } = getCurrentInstance()
 const { sys_normal_disable, sys_user_sex } = proxy.useDict("sys_normal_disable", "sys_user_sex")
 
@@ -278,7 +290,14 @@ const enabledDeptOptions = ref(undefined)
 const initPassword = ref(undefined)
 const roleOptions = ref([])
 const companyList = ref([])
+const subAdminList = ref([])
 const parentUserList = ref([])
+
+/** 判断当前用户是否是超级管理员 */
+const isAdmin = computed(() => {
+  return userStore.roles && userStore.roles.includes('admin')
+})
+
 /*** 用户导入参数 */
 const upload = reactive({
   // 是否显示弹出层（用户导入）
@@ -314,6 +333,8 @@ const data = reactive({
     phonenumber: undefined,
     status: undefined,
     roleId: undefined,
+    subAdminUserId: undefined,
+    companyUserId: undefined,
     deptId: undefined
   },
   rules: {
@@ -325,26 +346,16 @@ const data = reactive({
     phonenumber: [{ pattern: /^1[3|4|5|6|7|8|9][0-9]\d{8}$/, message: "请输入正确的手机号码", trigger: "blur" }],
     companyUserId: [{ 
       validator: (rule, value, callback) => {
-        // 如果角色是部长(101)或业务员(2)，且显示了公司选择，则公司必填
+        // 如果角色是部长司选择，则公司必填
         if ((form.roleIds === 101 || form.roleIds === 2) && !value) {
-          callback(new Error('所属公司不能为空'))
-        } else {
-          callback()
-        }
-      }, 
-      trigger: "change" 
-    }],
-    parentUserId: [{ 
-      validator: (rule, value, callback) => {
-        // 如果角色是业务员(2)且显示了上级选择，则上级必填
-        if (form.roleIds === 2 && form.companyUserId && !value) {
-          callback(new Error('上级不能为空'))
+          callback(new Error('所属公司管理员不能为空'))
         } else {
           callback()
         }
       }, 
       trigger: "change" 
     }]
+    // parentUserId 改为可选，业务员可以不选择上级
   }
 })
 
@@ -573,6 +584,17 @@ function getCompanyList() {
   })
 }
 
+/** 获取子管理员列表（仅超级管理员可用） */
+function getSubAdminList() {
+  if (isAdmin.value) {
+    fetchSubAdminList().then(response => {
+      subAdminList.value = response.data
+    }).catch(() => {
+      subAdminList.value = []
+    })
+  }
+}
+
 /** 获取公司下的所有用户列表（用于选择上级） */
 function getParentUserList(companyUserId) {
   if (companyUserId) {
@@ -684,5 +706,9 @@ onMounted(() => {
   getUser().then(response => {
     roleOptions.value = response.roles
   })
+  // 获取公司列表供查询使用
+  getCompanyList()
+  // 获取子管理员列表供查询使用（仅超级管理员）
+  getSubAdminList()
 })
 </script>
