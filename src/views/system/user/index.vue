@@ -43,6 +43,11 @@
                   <el-option v-for="item in companyList" :key="item.userId" :label="item.nickName" :value="item.userId"></el-option>
                 </el-select>
               </el-form-item>
+              <el-form-item label="所属上级" prop="parentUserId">
+                <el-select v-model="queryParams.parentUserId" filterable placeholder="请选择所属上级" clearable style="width: 240px">
+                  <el-option v-for="item in parentUserListForFilter" :key="item.userId" :label="item.nickName" :value="item.userId"></el-option>
+                </el-select>
+              </el-form-item>
               <el-form-item label="创建时间" style="width: 308px">
                 <el-date-picker v-model="dateRange" value-format="YYYY-MM-DD" type="daterange" range-separator="-" start-placeholder="开始日期" end-placeholder="结束日期"></el-date-picker>
               </el-form-item>
@@ -292,6 +297,7 @@ const roleOptions = ref([])
 const companyList = ref([])
 const subAdminList = ref([])
 const parentUserList = ref([])
+const parentUserListForFilter = ref([])
 
 /** 判断当前用户是否是超级管理员 */
 const isAdmin = computed(() => {
@@ -335,6 +341,7 @@ const data = reactive({
     roleId: undefined,
     subAdminUserId: undefined,
     companyUserId: undefined,
+    parentUserId: undefined,
     deptId: undefined
   },
   rules: {
@@ -595,6 +602,18 @@ function getSubAdminList() {
   }
 }
 
+/** 获取上级用户列表供筛选使用 */
+function getParentUserListForFilter() {
+  // 获取所有部长和业务员用户作为筛选选项
+  listUser({ roleId: 101 }).then(response => {
+    const ministerList = response.rows || []
+    listUser({ roleId: 2 }).then(res => {
+      const salesList = res.rows || []
+      parentUserListForFilter.value = [...ministerList, ...salesList]
+    })
+  })
+}
+
 /** 获取公司下的所有用户列表（用于选择上级） */
 function getParentUserList(companyUserId) {
   if (companyUserId) {
@@ -710,5 +729,7 @@ onMounted(() => {
   getCompanyList()
   // 获取子管理员列表供查询使用（仅超级管理员）
   getSubAdminList()
+  // 获取上级用户列表供筛选使用
+  getParentUserListForFilter()
 })
 </script>

@@ -379,6 +379,7 @@
           :limit="1"
           accept=".xlsx, .xls"
           :action="importUrl"
+          :headers="uploadHeaders"
           :on-success="handleImportSuccess"
           :on-error="handleImportError"
           :auto-upload="false"
@@ -405,8 +406,10 @@
       </div>
       <template #footer>
         <div class="dialog-footer">
-          <el-button @click="importDialogVisible = false">取 消</el-button>
-          <el-button type="primary" @click="submitImport" :disabled="!hasFileSelected">确 认</el-button>
+          <el-button @click="importDialogVisible = false" :disabled="importLoading">取 消</el-button>
+          <el-button type="primary" @click="submitImport" :disabled="!hasFileSelected || importLoading" :loading="importLoading">
+            {{ importLoading ? '导入中...' : '确 认' }}
+          </el-button>
         </div>
       </template>
     </el-dialog>
@@ -419,6 +422,7 @@ import { addTask } from "@/api/system/task"
 import { addTaskCustomerRelation } from "@/api/system/taskCustomerRelation"
 import { getTagsByUser, addUserDefinedTag, delUserDefinedTag } from '@/api/system/userDefinedTag'
 import { addInstantRequest } from '@/api/system/instantRequest'
+import { getToken } from '@/utils/auth'
 import FollowUpDialog from './components/FollowUpDialog.vue'
 
 const { proxy } = getCurrentInstance()
@@ -573,6 +577,7 @@ const newTagName = ref('')
 const importDialogVisible = ref(false)
 const importUrl = ref('')
 const hasFileSelected = ref(false)
+const importLoading = ref(false) // 导入加载状态
 const smsDialogVisible = ref(false)
 const smsContent = ref('')
 const smsType = ref('default') // 短信类型：default-默认短信，custom-自定义短信
@@ -581,6 +586,11 @@ const instantCallPhone = ref('')
 const instantSmsDialogVisible = ref(false)
 const instantSmsPhone = ref('')
 const instantSmsContent = ref('')
+
+// 上传文件的请求头
+const uploadHeaders = ref({
+  Authorization: 'Bearer ' + getToken()
+})
 
 const data = reactive({
   form: {},
@@ -852,6 +862,12 @@ function handleDownloadTemplate() {
 function handleImport() {
   // 设置导入API URL - 使用相对路径
   importUrl.value = '/dev-api/system/customer/import'
+  // 更新上传请求头，确保token是最新的
+  uploadHeaders.value = {
+    Authorization: 'Bearer ' + getToken()
+  }
+  // 重置加载状态
+  importLoading.value = false
   // 显示导入对话框
   importDialogVisible.value = true
   // 重置上传组件和文件选择状态
@@ -869,25 +885,68 @@ function handleFileChange(file, fileList) {
 /** 提交导入 */
 function submitImport() {
   if (proxy.$refs.upload) {
+    // 设置加载状态
+    importLoading.value = true
+    
+    // 提交上传
     proxy.$refs.upload.submit()
+    
+    // 延迟关闭对话框并显示提示，给用户视觉反馈
+    setTimeout(() => {
+      if (importLoading.value) { // 如果还在加载中（说明没有立即完成）
+        importDialogVisible.value = false
+        proxy.$notify({
+          title: '正在导入',
+          message: '客户数据正在后台导入，请稍候...',
+          type: 'info',
+          duration: 3000
+        })
+      }
+    }, 500)
   }
 }
 
 /** 导入成功处理 */
 function handleImportSuccess(response) {
+  // 重置加载状态
+  importLoading.value = false
+  // 关闭导入对话框（如果还开着）
+  importDialogVisible.value = false
+  
   if (response.code === 200) {
-    proxy.$modal.msgSuccess('导入成功')
-    importDialogVisible.value = false
-    getList() // 重新加载客户列表
+    // 使用通知方式显示成功信息，更醒目
+    proxy.$notify({
+      title: '导入成功',
+      message: response.msg || '客户数据已成功导入',
+      type: 'success',
+      duration: 4000
+    })
+    // 重新加载客户列表
+    getList()
   } else {
-    proxy.$modal.msgError(response.msg || '导入失败')
+    proxy.$notify({
+      title: '导入失败',
+      message: response.msg || '导入失败，请检查数据格式',
+      type: 'error',
+      duration: 5000
+    })
   }
 }
 
 /** 导入失败处理 */
 function handleImportError(error) {
+  // 重置加载状态
+  importLoading.value = false
+  // 关闭导入对话框（如果还开着）
+  importDialogVisible.value = false
+  
   console.error('导入失败:', error)
-  proxy.$modal.msgError('导入失败，请检查文件格式是否正确')
+  proxy.$notify({
+    title: '导入失败',
+    message: '导入过程中发生错误，请检查文件格式是否正确或重新登录后重试',
+    type: 'error',
+    duration: 5000
+  })
 }
 
 /** 显示一键拨号对话框 */
