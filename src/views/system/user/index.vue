@@ -161,14 +161,14 @@
         </el-row>
         <el-row>
           <el-col :span="12">
-            <el-form-item label="所属公司" prop="companyUserId" v-if="!isCompanyManagerRole">
-              <el-select v-model="form.companyUserId" placeholder="请选择所属公司" clearable @change="handleCompanyChange">
+            <el-form-item label="公司管理员" prop="companyUserId" >
+              <el-select v-model="form.companyUserId" placeholder="请选择公司管理员" clearable @change="handleCompanyChange">
                 <el-option v-for="item in companyList" :key="item.userId" :label="item.nickName" :value="item.userId"></el-option>
               </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="12">
-            <el-form-item label="上级" prop="parentUserId" v-if="showParentSelect">
+            <el-form-item label="上级" prop="parentUserId" >
               <el-select v-model="form.parentUserId" placeholder="请选择上级" clearable>
                 <el-option v-for="item in ministerList" :key="item.userId" :label="item.nickName" :value="item.userId"></el-option>
               </el-select>
@@ -301,9 +301,9 @@ const data = reactive({
     phonenumber: [{ pattern: /^1[3|4|5|6|7|8|9][0-9]\d{8}$/, message: "请输入正确的手机号码", trigger: "blur" }],
     companyUserId: [{ 
       validator: (rule, value, callback) => {
-        // 如果角色是部长(101)或业务员(2)，所属公司必填
+        // 如果角色是公司管理员(101)或业务员(2)，公司管理员必填
         if ((form.roleIds === 101 || form.roleIds === 2) && !value) {
-          callback(new Error('所属公司不能为空'))
+          callback(new Error('公司管理员不能为空'))
         } else {
           callback()
         }
@@ -542,7 +542,7 @@ function getCompanyList() {
   })
 }
 
-/** 获取部长列表 */
+/** 获取公司管理员列表 */
 function getMinisterList(companyUserId) {
   if (companyUserId) {
     fetchMinisterList(companyUserId).then(response => {
@@ -555,7 +555,7 @@ function getMinisterList(companyUserId) {
 
 /** 角色改变时的处理 */
 function handleRoleChange(roleId) {
-  // 如果选择了公司管理员角色，清空所属公司和上级
+  // 如果选择了公司管理员角色，清空公司管理员和上级
   if (form.value.roleIds === 102) {
     form.value.companyUserId = undefined
     form.value.parentUserId = undefined
@@ -567,7 +567,7 @@ function handleRoleChange(roleId) {
       getCompanyList()
     }
     
-    // 如果选择了业务员角色，且已经选择了所属公司，则加载部长列表
+    // 如果选择了业务员角色，且已经选择了公司管理员，则加载公司管理员列表
     if (form.value.roleIds === 2 && form.value.companyUserId) {
       getMinisterList(form.value.companyUserId)
     } else if (form.value.roleIds !== 2) {
@@ -578,11 +578,11 @@ function handleRoleChange(roleId) {
   }
 }
 
-/** 所属公司改变时的处理 */
+/** 公司管理员改变时的处理 */
 function handleCompanyChange(companyUserId) {
   // 清空上级选择
   form.value.parentUserId = undefined
-  // 如果选择了公司，且角色是业务员，则加载该公司下的部长列表
+  // 如果选择了公司，且角色是业务员，则加载该公司下的公司管理员列表
   if (companyUserId && form.value.roleIds === 2) {
     getMinisterList(companyUserId)
   } else {
@@ -619,7 +619,7 @@ function handleUpdate(row) {
     // 加载公司列表
     getCompanyList()
     
-    // 如果有所属公司且角色是业务员，则加载部长列表
+    // 如果有公司管理员且角色是业务员，则加载公司管理员列表
     if (form.value.companyUserId && form.value.roleIds === 2) {
       getMinisterList(form.value.companyUserId)
     }
