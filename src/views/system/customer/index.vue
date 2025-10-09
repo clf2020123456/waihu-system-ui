@@ -48,22 +48,17 @@
           @keyup.enter="handleQuery"
         />
       </el-form-item>
-      <!-- <el-form-item label="所属用户ID" prop="userId">
-        <el-input
-          v-model="queryParams.userId"
-          placeholder="请输入所属用户ID"
-          clearable
-          @keyup.enter="handleQuery"
-        />
-      </el-form-item> -->
-      <!-- <el-form-item label="所属集团用户ID" prop="groupUserId">
-        <el-input
-          v-model="queryParams.groupUserId"
-          placeholder="请输入所属集团用户ID"
-          clearable
-          @keyup.enter="handleQuery"
-        />
-      </el-form-item> -->
+      <!-- 用户筛选 - 根据角色显示不同选项 -->
+      <el-form-item label="所属用户" prop="userId" v-if="showUserFilter">
+        <el-select v-model="queryParams.userId" placeholder="请选择用户" clearable filterable style="width: 200px">
+          <el-option
+            v-for="user in userFilterList"
+            :key="user.userId"
+            :label="user.nickName || user.userName"
+            :value="user.userId"
+          />
+        </el-select>
+      </el-form-item>
       <el-form-item>
         <el-button type="primary" icon="Search" @click="handleQuery">搜索</el-button>
         <el-button icon="Refresh" @click="resetQuery">重置</el-button>
@@ -71,6 +66,22 @@
     </el-form>
 
     <el-row :gutter="10" class="mb8">
+      <el-col :span="1.5">
+        <el-button
+          v-if="!selectAllPages"
+          type="info"
+          plain
+          icon="Check"
+          @click="handleSelectAllPages"
+        >勾选全部页</el-button>
+        <el-button
+          v-else
+          type="warning"
+          plain
+          icon="Close"
+          @click="handleCancelSelectAll"
+        >取消全选 (已选{{ allPageIds.length }}条)</el-button>
+      </el-col>
       <el-col :span="1.5">
         <el-button
           type="primary"
@@ -422,10 +433,14 @@ import { addTask } from "@/api/system/task"
 import { addTaskCustomerRelation } from "@/api/system/taskCustomerRelation"
 import { getTagsByUser, addUserDefinedTag, delUserDefinedTag } from '@/api/system/userDefinedTag'
 import { addInstantRequest } from '@/api/system/instantRequest'
+import { listUser } from '@/api/system/user'
 import { getToken } from '@/utils/auth'
 import FollowUpDialog from './components/FollowUpDialog.vue'
+import useUserStore from '@/store/modules/user'
 
 const { proxy } = getCurrentInstance()
+const userStore = useUserStore()
+
 // 正确的字典使用方式 - 使用解构赋值
 const { sms_status, phone_status } = proxy.useDict('sms_status', 'phone_status')
 
@@ -501,6 +516,67 @@ function loadUserDefinedTags() {
 function parseTags(tags) {
   if (!tags) return []
   return tags.split(',')
+}
+
+// 初始化用户权限和筛选列表
+async function initUserFilter() {
+  try {
+    // 获取当前用户的角色
+    const roles = userStore.roles
+    console.log('当前用户角色:', roles)
+    
+    // 判断用户角色
+    const isAdmin = roles.includes('admin') // 超级管理员
+    const isCompanyManager = roles.some(role => role.includes('company') || role.includes('公司')) // 公司管理员（roleId=102）
+    const isMinister = roles.some(role => role.includes('minister') || role.includes('部长')) // 部长（roleId=101）
+    
+    if (isAdmin) {
+      // 超级管理员：可以查看所有用户
+      showUserFilter.value = true
+      currentUserRole.value = 'admin'
+      
+      // 加载所有用户
+      const res = await listUser({})
+      userFilterList.value = res.rows || []
+    } else if (isCompanyManager) {
+      // 公司管理员：可以查看整个公司的员工
+      showUserFilter.value = true
+      currentUserRole.value = 'companyManager'
+      
+      // 加载公司下所有用户（包括部长和业务员）
+      const currentUserId = userStore.id
+      const res = await listUser({ companyUserId: currentUserId })
+      userFilterList.value = res.rows || []
+    } else if (isMinister) {
+      // 部长：可以查看自己和下属业务员
+      showUserFilter.value = true
+      currentUserRole.value = 'minister'
+      
+      // 加载自己和下属业务员
+      const currentUserId = userStore.id
+      const res = await listUser({ parentUserId: currentUserId })
+      
+      // 将自己也加入列表
+      const subordinates = res.rows || []
+      userFilterList.value = [
+        {
+          userId: currentUserId,
+          userName: userStore.name,
+          nickName: userStore.nickName
+        },
+        ...subordinates
+      ]
+    } else {
+      // 业务员或其他角色：不显示筛选
+      showUserFilter.value = false
+      currentUserRole.value = 'salesman'
+    }
+    
+    console.log('用户筛选列表:', userFilterList.value)
+  } catch (error) {
+    console.error('初始化用户筛选失败:', error)
+    showUserFilter.value = false
+  }
 }
 
 // 显示标签管理弹窗
@@ -586,6 +662,15 @@ const instantCallPhone = ref('')
 const instantSmsDialogVisible = ref(false)
 const instantSmsPhone = ref('')
 const instantSmsContent = ref('')
+
+// 用户筛选相关
+const showUserFilter = ref(false) // 是否显示用户筛选
+const userFilterList = ref([]) // 用户筛选列表
+const currentUserRole = ref('') // 当前用户角色
+
+// 全选全部页相关
+const selectAllPages = ref(false) // 是否选中全部页
+const allPageIds = ref([]) // 所有页的ID列表
 
 // 上传文件的请求头
 const uploadHeaders = ref({
@@ -676,20 +761,73 @@ function reset() {
 /** 搜索按钮操作 */
 function handleQuery() {
   queryParams.value.pageNum = 1
+  // 搜索时取消全选状态
+  if (selectAllPages.value) {
+    selectAllPages.value = false
+    allPageIds.value = []
+    ids.value = []
+  }
   getList()
 }
 
 /** 重置按钮操作 */
 function resetQuery() {
   proxy.resetForm("queryRef")
+  // 重置时取消全选状态
+  if (selectAllPages.value) {
+    selectAllPages.value = false
+    allPageIds.value = []
+    ids.value = []
+  }
   handleQuery()
 }
 
 // 多选框选中数据
 function handleSelectionChange(selection) {
-  ids.value = selection.map(item => item.id)
-  single.value = selection.length != 1
-  multiple.value = !selection.length
+  // 如果是全选模式，不更新ids
+  if (!selectAllPages.value) {
+    ids.value = selection.map(item => item.id)
+    single.value = selection.length != 1
+    multiple.value = !selection.length
+  }
+}
+
+/** 勾选全部页 */
+function handleSelectAllPages() {
+  proxy.$modal.confirm('确定要选中所有页的数据吗？', '提示', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'warning'
+  }).then(() => {
+    // 获取所有数据的ID（不分页）
+    const allQuery = { ...queryParams.value }
+    delete allQuery.pageNum
+    delete allQuery.pageSize
+    allQuery.pageSize=2000
+    loading.value = true
+    listCustomer(allQuery).then(response => {
+      allPageIds.value = response.rows.map(item => item.id)
+      ids.value = allPageIds.value
+      selectAllPages.value = true
+      single.value = allPageIds.value.length != 1
+      multiple.value = !allPageIds.value.length
+      loading.value = false
+      proxy.$modal.msgSuccess(`已选中全部 ${allPageIds.value.length} 条数据`)
+    }).catch(() => {
+      loading.value = false
+      proxy.$modal.msgError('获取全部数据失败')
+    })
+  })
+}
+
+/** 取消全选 */
+function handleCancelSelectAll() {
+  selectAllPages.value = false
+  allPageIds.value = []
+  ids.value = []
+  single.value = true
+  multiple.value = true
+  proxy.$modal.msgSuccess('已取消全选')
 }
 
 /** 新增按钮操作 */
@@ -1035,6 +1173,9 @@ allTags.value = [...DEFAULT_TAGS]
 
 // 然后异步加载用户自定义标签和系统字典
 loadUserDefinedTags()
+
+// 初始化用户筛选
+initUserFilter()
 
 // 加载客户列表
 getList()

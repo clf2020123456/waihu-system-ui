@@ -4,6 +4,39 @@
     <breadcrumb v-if="!settingsStore.topNav" id="breadcrumb-container" class="breadcrumb-container" />
     <top-nav v-if="settingsStore.topNav" id="topmenu-container" class="topmenu-container" />
 
+    <!-- 实时通话悬浮窗 -->
+    <div v-if="activeCallVisible" class="active-call-floating">
+      <div class="floating-close-btn" @click="closeActiveCall">
+        <i class="el-icon-close"></i>
+      </div>
+      <div class="floating-content">
+        <div class="floating-title">
+          <i class="el-icon-phone-outline"></i>
+          <span>正在通话中</span>
+        </div>
+        <div class="floating-customer">
+          <span class="customer-name">{{ activeCallData.customerName }}</span>
+          <span class="customer-phone">{{ activeCallData.phone }}</span>
+        </div>
+        <div v-if="activeCallData.consumptionAmount !== null && activeCallData.consumptionAmount !== undefined" class="floating-amount">
+          <i class="el-icon-money"></i>
+          <span>消费金额: ¥{{ activeCallData.consumptionAmount }}</span>
+        </div>
+        <div v-if="activeCallData.taskName" class="floating-task">
+          <i class="el-icon-collection-tag"></i>
+          <span>任务: {{ activeCallData.taskName }}</span>
+        </div>
+        <div v-if="activeCallData.remark" class="floating-remark">
+          <i class="el-icon-document"></i>
+          <span>{{ activeCallData.remark }}</span>
+        </div>
+        <div v-if="activeCallData.callStartTime" class="floating-duration">
+          <i class="el-icon-time"></i>
+          <span>通话时长: {{ formatCallDuration(activeCallData.callStartTime) }}</span>
+        </div>
+      </div>
+    </div>
+
     <div class="right-menu">
       <template v-if="appStore.device !== 'mobile'">
         <!-- <header-search id="header-search" class="right-menu-item" />
@@ -127,6 +160,7 @@ import useAppStore from '@/store/modules/app'
 import useUserStore from '@/store/modules/user'
 import useSettingsStore from '@/store/modules/settings'
 import { getUnreadCount, listTodoItem, markAsRead, batchMarkAsRead, delTodoItem } from '@/api/system/todoItem'
+import { getActiveCall } from '@/api/system/activeCall'
 
 const appStore = useAppStore()
 const userStore = useUserStore()
@@ -145,6 +179,19 @@ const todoQueryParams = reactive({
 })
 
 let pollingTimer = null
+
+// 实时通话状态相关
+const activeCallVisible = ref(false)
+const activeCallData = ref({
+  customerName: '',
+  phone: '',
+  consumptionAmount: null,
+  remark: '',
+  taskName: '',
+  callStartTime: null
+})
+
+let activeCallPollingTimer = null
 
 function toggleSideBar() {
   appStore.toggleSideBar()
@@ -268,6 +315,46 @@ function formatDateTime(dateTime) {
   return dateTime
 }
 
+// 获取实时通话状态
+function loadActiveCall() {
+  getActiveCall().then(res => {
+    if (res.data && res.data.phone) {
+      // 有正在进行的通话
+      activeCallData.value = {
+        customerName: res.data.customerName || '未知客户',
+        phone: res.data.phone,
+        consumptionAmount: res.data.consumptionAmount,
+        remark: res.data.remark || '',
+        taskName: res.data.taskName || '',
+        callStartTime: res.data.callStartTime
+      }
+      activeCallVisible.value = true
+    } else {
+      // 没有通话，隐藏悬浮窗
+      activeCallVisible.value = false
+    }
+  }).catch(err => {
+    console.error('获取实时通话状态失败:', err)
+    activeCallVisible.value = false
+  })
+}
+
+// 关闭实时通话悬浮窗
+function closeActiveCall() {
+  activeCallVisible.value = false
+}
+
+// 格式化通话时长
+function formatCallDuration(startTime) {
+  if (!startTime) return ''
+  const start = new Date(startTime)
+  const now = new Date()
+  const diff = Math.floor((now - start) / 1000) // 秒
+  const minutes = Math.floor(diff / 60)
+  const seconds = diff % 60
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`
+}
+
 // 页面加载时获取未读数量
 onMounted(() => {
   loadUnreadCount()
@@ -275,12 +362,22 @@ onMounted(() => {
   pollingTimer = setInterval(() => {
     loadUnreadCount()
   }, 30000)
+  
+  // 立即加载一次实时通话状态
+  loadActiveCall()
+  // 每3秒轮询一次实时通话状态
+  activeCallPollingTimer = setInterval(() => {
+    loadActiveCall()
+  }, 3000)
 })
 
 // 组件卸载时清除定时器
 onUnmounted(() => {
   if (pollingTimer) {
     clearInterval(pollingTimer)
+  }
+  if (activeCallPollingTimer) {
+    clearInterval(activeCallPollingTimer)
   }
 })
 </script>
@@ -408,5 +505,166 @@ onUnmounted(() => {
       }
     }
   }
+}
+
+/* 实时通话悬浮窗 */
+.active-call-floating {
+  position: fixed;
+  top: 80px;
+  right: 20px;
+  background: linear-gradient(135deg, rgba(0, 0, 0, 0.95), rgba(0, 0, 0, 0.9));
+  border-radius: 12px;
+  padding: 20px;
+  z-index: 9999;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(10px);
+  min-width: 280px;
+  max-width: 400px;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.floating-close-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 24px;
+  height: 24px;
+  background: rgba(255, 59, 48, 0.9);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  z-index: 10000;
+}
+
+.floating-close-btn:hover {
+  transform: scale(1.1);
+  background: rgba(255, 59, 48, 1);
+}
+
+.floating-close-btn i {
+  color: #fff;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.floating-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.floating-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #00FF00;
+  margin-bottom: 8px;
+}
+
+.floating-title i {
+  font-size: 18px;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.floating-customer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.customer-name {
+  font-size: 18px;
+  color: #FFFFFF;
+  font-weight: 600;
+}
+
+.customer-phone {
+  font-size: 20px;
+  color: #00FF00;
+  font-weight: bold;
+  letter-spacing: 1px;
+}
+
+.floating-amount,
+.floating-task,
+.floating-remark,
+.floating-duration {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #E0E0E0;
+}
+
+.floating-amount {
+  color: #FFD700;
+  font-weight: 600;
+}
+
+.floating-amount i,
+.floating-task i,
+.floating-remark i,
+.floating-duration i {
+  font-size: 16px;
+  color: #87CEEB;
+}
+
+.floating-duration {
+  color: #87CEEB;
+  font-weight: 600;
+  animation: blink 1s ease-in-out infinite;
+}
+
+@keyframes blink {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.floating-remark {
+  font-size: 13px;
+  color: #B0B0B0;
+  word-wrap: break-word;
+  word-break: break-all;
+  line-height: 1.4;
+  max-height: 60px;
+  overflow-y: auto;
+}
+
+.floating-remark::-webkit-scrollbar {
+  width: 4px;
+}
+
+.floating-remark::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 2px;
 }
 </style>
