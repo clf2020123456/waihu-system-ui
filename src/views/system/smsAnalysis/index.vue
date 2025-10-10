@@ -46,7 +46,7 @@
             range-separator="-"
             start-placeholder="开始日期"
             end-placeholder="结束日期"
-            value-format="yyyy-MM-dd"
+            value-format="YYYY-MM-DD"
             style="width: 280px;"
           ></el-date-picker>
         </el-form-item>
