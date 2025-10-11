@@ -163,24 +163,35 @@
           v-hasPermi="['system:customer:edit']"
         >管理标签</el-button>
       </el-col>
-      <el-col :span="1.5">
-        <el-button
-          type="success"
-          plain
-          icon="Phone"
-          @click="showInstantCallDialog"
-          v-hasPermi="['system:customer:edit']"
-        >一键拨号</el-button>
+      
+      <!-- 一键拨号/短信操作区 -->
+      <el-col :span="12">
+        <div class="instant-action-group" style="margin-top: 10px;">
+          <span class="action-label">快速操作：</span>
+          <el-input
+            v-model="instantPhone"
+            placeholder="请输入手机号"
+            clearable
+            style="width: 180px;"
+            @keyup.enter="handleInstantCall"
+          />
+          <el-button
+            type="success"
+            plain
+            icon="Phone"
+            @click="handleInstantCall"
+            v-hasPermi="['system:customer:edit']"
+          >一键拨号</el-button>
+          <el-button
+            type="warning"
+            plain
+            icon="Message"
+            @click="handleInstantSms"
+            v-hasPermi="['system:customer:edit']"
+          >一键短信</el-button>
+        </div>
       </el-col>
-      <el-col :span="1.5">
-        <el-button
-          type="warning"
-          plain
-          icon="Message"
-          @click="showInstantSmsDialog"
-          v-hasPermi="['system:customer:edit']"
-        >一键短信</el-button>
-      </el-col>
+      
       <right-toolbar v-model:showSearch="showSearch" @queryTable="getList"></right-toolbar>
     </el-row>
 
@@ -342,26 +353,11 @@
       </template>
     </el-dialog>
 
-    <!-- 一键拨号对话框 -->
-    <el-dialog title="一键拨号" v-model="instantCallDialogVisible" width="500px" append-to-body>
-      <el-form label-width="80px">
-        <el-form-item label="手机号" required>
-          <el-input v-model="instantCallPhone" placeholder="请输入要拨打的手机号" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <div class="dialog-footer">
-          <el-button @click="instantCallDialogVisible = false">取 消</el-button>
-          <el-button type="primary" @click="confirmInstantCall">确 定</el-button>
-        </div>
-      </template>
-    </el-dialog>
-
-    <!-- 一键短信对话框 -->
+    <!-- 一键短信内容输入对话框 -->
     <el-dialog title="一键短信" v-model="instantSmsDialogVisible" width="500px" append-to-body>
       <el-form label-width="80px">
         <el-form-item label="手机号" required>
-          <el-input v-model="instantSmsPhone" placeholder="请输入要发送的手机号" />
+          <el-input v-model="instantPhone" placeholder="请输入要发送的手机号" disabled />
         </el-form-item>
         <el-form-item label="短信内容" required>
           <el-input
@@ -657,10 +653,8 @@ const importLoading = ref(false) // 导入加载状态
 const smsDialogVisible = ref(false)
 const smsContent = ref('')
 const smsType = ref('default') // 短信类型：default-默认短信，custom-自定义短信
-const instantCallDialogVisible = ref(false)
-const instantCallPhone = ref('')
+const instantPhone = ref('') // 一键操作统一使用的手机号
 const instantSmsDialogVisible = ref(false)
-const instantSmsPhone = ref('')
 const instantSmsContent = ref('')
 
 // 用户筛选相关
@@ -1087,70 +1081,63 @@ function handleImportError(error) {
   })
 }
 
-/** 显示一键拨号对话框 */
-function showInstantCallDialog() {
-  instantCallPhone.value = ''
-  instantCallDialogVisible.value = true
-}
-
-/** 确认一键拨号 */
-function confirmInstantCall() {
-  if (!instantCallPhone.value || instantCallPhone.value.trim() === '') {
+/** 一键拨号操作 */
+function handleInstantCall() {
+  if (!instantPhone.value || instantPhone.value.trim() === '') {
     proxy.$modal.msgWarning('请输入手机号')
     return
   }
   
   // 简单验证手机号格式
   const phoneRegex = /^1[3-9]\d{9}$/
-  if (!phoneRegex.test(instantCallPhone.value.trim())) {
+  if (!phoneRegex.test(instantPhone.value.trim())) {
     proxy.$modal.msgWarning('请输入正确的手机号格式')
     return
   }
   
   const request = {
-    phone: instantCallPhone.value.trim(),
+    phone: instantPhone.value.trim(),
     requestType: '1', // 1=拨号
     remark: '一键拨号'
   }
   
   addInstantRequest(request).then(() => {
     proxy.$modal.msgSuccess('拨号请求已发送，请在手机端查看')
-    instantCallDialogVisible.value = false
-    instantCallPhone.value = ''
+    instantPhone.value = ''
   }).catch(error => {
     console.error('一键拨号请求创建失败:', error)
     proxy.$modal.msgError('拨号请求创建失败，请重试')
   })
 }
 
-/** 显示一键短信对话框 */
-function showInstantSmsDialog() {
-  instantSmsPhone.value = ''
-  instantSmsContent.value = ''
-  instantSmsDialogVisible.value = true
-}
-
-/** 确认发送一键短信 */
-function confirmInstantSms() {
-  if (!instantSmsPhone.value || instantSmsPhone.value.trim() === '') {
+/** 一键短信操作 */
+function handleInstantSms() {
+  if (!instantPhone.value || instantPhone.value.trim() === '') {
     proxy.$modal.msgWarning('请输入手机号')
     return
   }
   
   // 简单验证手机号格式
   const phoneRegex = /^1[3-9]\d{9}$/
-  if (!phoneRegex.test(instantSmsPhone.value.trim())) {
+  if (!phoneRegex.test(instantPhone.value.trim())) {
     proxy.$modal.msgWarning('请输入正确的手机号格式')
     return
   }
   
+  // 打开对话框输入短信内容
+  instantSmsContent.value = ''
+  instantSmsDialogVisible.value = true
+}
+
+/** 确认发送一键短信 */
+function confirmInstantSms() {
   if (!instantSmsContent.value || instantSmsContent.value.trim() === '') {
     proxy.$modal.msgWarning('请输入短信内容')
     return
   }
   
   const request = {
-    phone: instantSmsPhone.value.trim(),
+    phone: instantPhone.value.trim(),
     requestType: '2', // 2=短信
     smsContent: instantSmsContent.value.trim(),
     remark: '一键短信'
@@ -1159,7 +1146,7 @@ function confirmInstantSms() {
   addInstantRequest(request).then(() => {
     proxy.$modal.msgSuccess('短信请求已发送，请在手机端查看')
     instantSmsDialogVisible.value = false
-    instantSmsPhone.value = ''
+    instantPhone.value = ''
     instantSmsContent.value = ''
   }).catch(error => {
     console.error('一键短信请求创建失败:', error)
@@ -1277,5 +1264,25 @@ getList()
   font-size: 13px;
   color: #606266;
   line-height: 24px;
+}
+
+/* 快速操作分组样式 */
+.instant-action-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, #f5f7fa 0%, #e8edf3 100%);
+  border: 2px solid #409eff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(64, 158, 255, 0.15);
+}
+
+.action-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #409eff;
+  white-space: nowrap;
+  margin-right: 5px;
 }
 </style>
