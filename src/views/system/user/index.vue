@@ -96,7 +96,8 @@
                   ></el-switch>
                 </template>
               </el-table-column>
-              <el-table-column label="创建时间" align="center" prop="createTime" v-if="columns[6].visible" width="160">
+              <el-table-column label="上级" align="center" key="parentUserName" prop="parentUserName" v-if="columns[6].visible" :show-overflow-tooltip="true" />
+              <el-table-column label="创建时间" align="center" prop="createTime" v-if="columns[7].visible" width="160">
                 <template #default="scope">
                   <span>{{ parseTime(scope.row.createTime) }}</span>
                 </template>
@@ -330,7 +331,8 @@ const columns = ref([
   { key: 3, label: `角色`, visible: true },
   { key: 4, label: `手机号码`, visible: true },
   { key: 5, label: `状态`, visible: true },
-  { key: 6, label: `创建时间`, visible: true }
+  { key: 6, label: `上级`, visible: true },
+  { key: 7, label: `创建时间`, visible: true }
 ])
 
 const data = reactive({

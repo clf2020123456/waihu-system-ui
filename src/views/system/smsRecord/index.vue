@@ -1,22 +1,47 @@
 <template>
   <div class="app-container">
-    <el-form :model="queryParams" ref="queryRef" :inline="true" v-show="showSearch" label-width="68px">
-      <!-- <el-form-item label="关联ID" prop="relationId">
-        <el-input
-          v-model="queryParams.relationId"
-          placeholder="请输入关联ID"
-          clearable
-          @keyup.enter="handleQuery"
-        />
+    <el-form :model="queryParams" ref="queryRef" :inline="true" v-show="showSearch" label-width="88px">
+      <el-form-item label="公司管理员" prop="companyUserId">
+        <el-select v-model="queryParams.companyUserId" placeholder="请选择公司" clearable style="width: 200px;" @change="handleCompanyChange">
+          <el-option
+            v-for="company in companyList"
+            :key="company.userId"
+            :label="company.nickName"
+            :value="company.userId"
+          ></el-option>
+        </el-select>
       </el-form-item>
-      <el-form-item label="任务ID" prop="taskId">
-        <el-input
-          v-model="queryParams.taskId"
-          placeholder="请输入任务ID"
-          clearable
-          @keyup.enter="handleQuery"
-        />
-      </el-form-item> -->
+      <el-form-item label="部长" prop="ministerUserId">
+        <el-select v-model="queryParams.ministerUserId" placeholder="请选择部长" clearable style="width: 200px;" @change="handleMinisterChange">
+          <el-option
+            v-for="minister in ministerList"
+            :key="minister.userId"
+            :label="minister.nickName"
+            :value="minister.userId"
+          ></el-option>
+        </el-select>
+      </el-form-item>
+      <el-form-item label="业务员" prop="salesmanUserId">
+        <el-select v-model="queryParams.salesmanUserId" placeholder="请选择业务员" clearable style="width: 200px;">
+          <el-option
+            v-for="salesman in salesmanList"
+            :key="salesman.userId"
+            :label="salesman.nickName"
+            :value="salesman.userId"
+          ></el-option>
+        </el-select>
+      </el-form-item>
+      <el-form-item label="时间范围" prop="dateRange">
+        <el-date-picker
+          v-model="dateRange"
+          type="daterange"
+          range-separator="-"
+          start-placeholder="开始日期"
+          end-placeholder="结束日期"
+          value-format="YYYY-MM-DD"
+          style="width: 280px;"
+        ></el-date-picker>
+      </el-form-item>
       <el-form-item label="批次号" prop="batchNo">
         <el-input
           v-model="queryParams.batchNo"
@@ -106,9 +131,20 @@
       <el-table-column label="客户名称" align="center" prop="customerName" />
       <el-table-column label="手机号" align="center" prop="phone" />
       <el-table-column label="消费金额" align="center" prop="consumptionAmount" />
-      <el-table-column label="短信内容" align="center" prop="smsContent" />
-      <el-table-column label="回复内容" align="center" prop="replyContent" />
-      <el-table-column label="备注" align="center" prop="remark" />
+      <el-table-column label="短信内容" align="center" prop="smsContent" :show-overflow-tooltip="true" width="200" />
+      <el-table-column label="回复内容" align="center" prop="replyContent" width="250">
+        <template #default="scope">
+          <div v-if="scope.row.replyContent">
+            <div v-if="isJsonArray(scope.row.replyContent)">
+              <el-tag type="info">{{ getReplyCount(scope.row.replyContent) }}条回复</el-tag>
+              <el-button link type="primary" @click="viewReplyDetails(scope.row.replyContent)">查看详情</el-button>
+            </div>
+            <div v-else>{{ scope.row.replyContent }}</div>
+          </div>
+          <span v-else>-</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="备注" align="center" prop="remark" :show-overflow-tooltip="true" />
       <el-table-column label="操作" align="center" class-name="small-padding fixed-width">
         <template #default="scope">
           <el-button link type="primary" icon="Edit" @click="handleUpdate(scope.row)" v-hasPermi="['system:smsRecord:edit']">修改</el-button>
@@ -124,6 +160,22 @@
       v-model:limit="queryParams.pageSize"
       @pagination="getList"
     />
+
+    <!-- 回复内容详情对话框 -->
+    <el-dialog title="回复内容详情" v-model="replyDetailOpen" width="600px" append-to-body>
+      <el-timeline>
+        <el-timeline-item
+          v-for="(item, index) in replyDetailList"
+          :key="index"
+          :timestamp="formatReplyTime(item)"
+          placement="top"
+        >
+          <el-card>
+            <p>{{ item.content }}</p>
+          </el-card>
+        </el-timeline-item>
+      </el-timeline>
+    </el-dialog>
 
     <!-- 添加或修改短信记录对话框 -->
     <el-dialog :title="title" v-model="open" width="500px" append-to-body>
@@ -147,10 +199,22 @@
           <el-input v-model="form.consumptionAmount" placeholder="请输入消费金额" />
         </el-form-item>
         <el-form-item label="短信内容">
-          <editor v-model="form.smsContent" :min-height="192"/>
+          <el-input v-model="form.smsContent" type="textarea" :rows="3" placeholder="请输入短信内容" />
         </el-form-item>
         <el-form-item label="回复内容">
-          <editor v-model="form.replyContent" :min-height="192"/>
+          <div v-if="isJsonArray(form.replyContent)" style="max-height: 300px; overflow-y: auto; border: 1px solid #dcdfe6; border-radius: 4px; padding: 10px;">
+            <el-timeline>
+              <el-timeline-item
+                v-for="(item, index) in parseReplyContent(form.replyContent)"
+                :key="index"
+                :timestamp="formatReplyTime(item)"
+                placement="top"
+              >
+                <p style="margin: 0;">{{ item.content }}</p>
+              </el-timeline-item>
+            </el-timeline>
+          </div>
+          <el-input v-else v-model="form.replyContent" type="textarea" :rows="3" placeholder="请输入回复内容" />
         </el-form-item>
         <el-form-item label="备注" prop="remark">
           <el-input v-model="form.remark" type="textarea" placeholder="请输入内容" />
@@ -168,6 +232,7 @@
 
 <script setup name="SmsRecord">
 import { listSmsRecord, getSmsRecord, delSmsRecord, addSmsRecord, updateSmsRecord } from "@/api/system/smsRecord"
+import { listUser, getCompanyList, getMinisterList } from "@/api/system/user"
 
 const { proxy } = getCurrentInstance()
 
@@ -180,12 +245,21 @@ const single = ref(true)
 const multiple = ref(true)
 const total = ref(0)
 const title = ref("")
+const dateRange = ref([])
+const companyList = ref([])
+const ministerList = ref([])
+const salesmanList = ref([])
+const replyDetailOpen = ref(false)
+const replyDetailList = ref([])
 
 const data = reactive({
   form: {},
   queryParams: {
     pageNum: 1,
     pageSize: 10,
+    companyUserId: null,
+    ministerUserId: null,
+    salesmanUserId: null,
     relationId: null,
     taskId: null,
     batchNo: null,
@@ -222,11 +296,156 @@ const { queryParams, form, rules } = toRefs(data)
 /** 查询短信记录列表 */
 function getList() {
   loading.value = true
-  listSmsRecord(queryParams.value).then(response => {
+  const params = { ...queryParams.value }
+  
+  // 添加时间范围参数
+  if (dateRange.value && dateRange.value.length === 2) {
+    params.startTime = dateRange.value[0] + ' 00:00:00'
+    params.endTime = dateRange.value[1] + ' 23:59:59'
+  }
+  
+  listSmsRecord(params).then(response => {
     smsRecordList.value = response.rows
     total.value = response.total
     loading.value = false
   })
+}
+
+// 获取公司列表
+function fetchCompanyList() {
+  getCompanyList().then(response => {
+    companyList.value = response.data || []
+  })
+}
+
+// 获取部长列表
+function fetchMinisterList(companyUserId) {
+  if (companyUserId) {
+    getMinisterList(companyUserId).then(response => {
+      ministerList.value = response.data || []
+    })
+  } else {
+    ministerList.value = []
+  }
+}
+
+// 获取业务员列表
+function fetchSalesmanList(ministerUserId) {
+  if (ministerUserId) {
+    // 查询指定部长下的业务员
+    listUser({ parentUserId: ministerUserId, roleId: 2 }).then(response => {
+      salesmanList.value = response.rows || []
+    })
+  } else if (queryParams.value.companyUserId) {
+    // 如果选了公司但没选部长，查询该公司下的所有业务员
+    listUser({ companyUserId: queryParams.value.companyUserId, roleId: 2 }).then(response => {
+      salesmanList.value = response.rows || []
+    })
+  } else {
+    salesmanList.value = []
+  }
+}
+
+// 公司选择变化
+function handleCompanyChange(companyUserId) {
+  // 清空部长和业务员选择
+  queryParams.value.ministerUserId = null
+  queryParams.value.salesmanUserId = null
+  ministerList.value = []
+  salesmanList.value = []
+  
+  // 加载该公司下的部长列表
+  if (companyUserId) {
+    fetchMinisterList(companyUserId)
+    fetchSalesmanList(null) // 加载该公司下的所有业务员
+  }
+}
+
+// 部长选择变化
+function handleMinisterChange(ministerUserId) {
+  // 清空业务员选择
+  queryParams.value.salesmanUserId = null
+  salesmanList.value = []
+  
+  // 加载该部长下的业务员列表
+  if (ministerUserId) {
+    fetchSalesmanList(ministerUserId)
+  } else if (queryParams.value.companyUserId) {
+    // 如果清空了部长但还有公司，加载公司下的所有业务员
+    fetchSalesmanList(null)
+  }
+}
+
+// 判断是否为 JSON 数组
+function isJsonArray(str) {
+  if (!str) return false
+  try {
+    const data = typeof str === 'string' ? JSON.parse(str) : str
+    return Array.isArray(data)
+  } catch (e) {
+    return false
+  }
+}
+
+// 获取回复数量
+function getReplyCount(replyContent) {
+  try {
+    const data = typeof replyContent === 'string' ? JSON.parse(replyContent) : replyContent
+    return Array.isArray(data) ? data.length : 0
+  } catch (e) {
+    return 0
+  }
+}
+
+// 查看回复详情
+function viewReplyDetails(replyContent) {
+  try {
+    const data = typeof replyContent === 'string' ? JSON.parse(replyContent) : replyContent
+    if (Array.isArray(data)) {
+      replyDetailList.value = data
+      replyDetailOpen.value = true
+    }
+  } catch (e) {
+    proxy.$modal.msgError("解析回复内容失败")
+  }
+}
+
+// 解析回复内容
+function parseReplyContent(replyContent) {
+  try {
+    const data = typeof replyContent === 'string' ? JSON.parse(replyContent) : replyContent
+    return Array.isArray(data) ? data : []
+  } catch (e) {
+    return []
+  }
+}
+
+// 格式化回复时间
+function formatReplyTime(item) {
+  try {
+    let date
+    if (item.timestamp) {
+      // 使用时间戳
+      date = new Date(item.timestamp)
+    } else if (item.time) {
+      // 使用时间字符串
+      date = new Date(item.time)
+    } else {
+      return ''
+    }
+    
+    // 格式化为 YYYY-MM-DD HH:mm:ss
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const hours = String(date.getHours()).padStart(2, '0')
+    const minutes = String(date.getMinutes()).padStart(2, '0')
+    const seconds = String(date.getSeconds()).padStart(2, '0')
+    
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
+  } catch (e) {
+    return item.time || ''
+  }
 }
 
 // 取消按钮
@@ -264,6 +483,12 @@ function handleQuery() {
 
 /** 重置按钮操作 */
 function resetQuery() {
+  dateRange.value = []
+  queryParams.value.companyUserId = null
+  queryParams.value.ministerUserId = null
+  queryParams.value.salesmanUserId = null
+  ministerList.value = []
+  salesmanList.value = []
   proxy.resetForm("queryRef")
   handleQuery()
 }
@@ -332,5 +557,7 @@ function handleExport() {
   }, `smsRecord_${new Date().getTime()}.xlsx`)
 }
 
+// 页面初始化
+fetchCompanyList()
 getList()
 </script>

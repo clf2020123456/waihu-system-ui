@@ -28,7 +28,7 @@
         </div>
         <div v-if="activeCallData.remark" class="floating-remark">
           <i class="el-icon-document"></i>
-          <span>{{ activeCallData.remark }}</span>
+          <span>备注: {{ activeCallData.remark }}</span>
         </div>
         <div v-if="activeCallData.callStartTime" class="floating-duration">
           <i class="el-icon-time"></i>
@@ -329,13 +329,10 @@ function loadActiveCall() {
         callStartTime: res.data.callStartTime
       }
       activeCallVisible.value = true
-    } else {
-      // 没有通话，隐藏悬浮窗
-      activeCallVisible.value = false
     }
+    // 不再自动隐藏悬浮窗，只能用户手动关闭
   }).catch(err => {
     console.error('获取实时通话状态失败:', err)
-    activeCallVisible.value = false
   })
 }
 
