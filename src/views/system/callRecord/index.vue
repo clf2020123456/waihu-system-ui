@@ -74,6 +74,13 @@
           @keyup.enter="handleQuery"
         />
       </el-form-item>
+      <el-form-item label="录音状态" prop="hasRecording">
+        <el-select v-model="queryParams.hasRecording" placeholder="请选择录音状态" clearable style="width: 150px;">
+          <el-option label="全部" :value="null"></el-option>
+          <el-option label="有录音" :value="1"></el-option>
+          <el-option label="无录音" :value="0"></el-option>
+        </el-select>
+      </el-form-item>
       <el-form-item>
         <el-button type="primary" icon="Search" @click="handleQuery">搜索</el-button>
         <el-button icon="Refresh" @click="resetQuery">重置</el-button>
@@ -134,6 +141,7 @@
 
     <el-table v-loading="loading" :data="callRecordList" @selection-change="handleSelectionChange">
       <el-table-column type="selection" width="55" align="center" />
+      <el-table-column label="业务员" align="center" prop="userName" width="120" />
       <!-- <el-table-column label="通话记录ID" align="center" prop="id" />
       <el-table-column label="关联ID" align="center" prop="relationId" />
       <el-table-column label="任务ID" align="center" prop="taskId" /> -->
@@ -255,6 +263,7 @@ const data = reactive({
     consumptionAmount: null,
     callDuration: null,
     callRecordingUrl: null,
+    hasRecording: null,
   },
   rules: {
     taskId: [

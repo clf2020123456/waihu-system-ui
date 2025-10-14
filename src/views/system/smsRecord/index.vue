@@ -124,6 +124,7 @@
 
     <el-table v-loading="loading" :data="smsRecordList" @selection-change="handleSelectionChange">
       <el-table-column type="selection" width="55" align="center" />
+      <el-table-column label="业务员" align="center" prop="userName" width="120" />
       <!-- <el-table-column label="短信记录ID" align="center" prop="id" />
       <el-table-column label="关联ID" align="center" prop="relationId" />
       <el-table-column label="任务ID" align="center" prop="taskId" /> -->
@@ -302,6 +303,11 @@ function getList() {
   if (dateRange.value && dateRange.value.length === 2) {
     params.startTime = dateRange.value[0] + ' 00:00:00'
     params.endTime = dateRange.value[1] + ' 23:59:59'
+  }
+  
+  // 将业务员筛选条件映射到userId参数
+  if (queryParams.value.salesmanUserId) {
+    params.userId = queryParams.value.salesmanUserId
   }
   
   listSmsRecord(params).then(response => {
@@ -552,9 +558,20 @@ function handleDelete(row) {
 
 /** 导出按钮操作 */
 function handleExport() {
-  proxy.download('system/smsRecord/export', {
-    ...queryParams.value
-  }, `smsRecord_${new Date().getTime()}.xlsx`)
+  const params = { ...queryParams.value }
+  
+  // 添加时间范围参数
+  if (dateRange.value && dateRange.value.length === 2) {
+    params.startTime = dateRange.value[0] + ' 00:00:00'
+    params.endTime = dateRange.value[1] + ' 23:59:59'
+  }
+  
+  // 将业务员筛选条件映射到userId参数
+  if (queryParams.value.salesmanUserId) {
+    params.userId = queryParams.value.salesmanUserId
+  }
+  
+  proxy.download('system/smsRecord/export', params, `smsRecord_${new Date().getTime()}.xlsx`)
 }
 
 // 页面初始化

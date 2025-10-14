@@ -41,11 +41,11 @@
                   <el-option v-for="item in subAdminList" :key="item.userId" :label="item.nickName" :value="item.userId"></el-option>
                 </el-select>
               </el-form-item>
-              <el-form-item label="公司管理员" prop="companyUserId">
+              <!-- <el-form-item label="公司管理员" prop="companyUserId">
                 <el-select v-model="queryParams.companyUserId" placeholder="请选择公司管理员" clearable style="width: 240px">
                   <el-option v-for="item in companyList" :key="item.userId" :label="item.nickName" :value="item.userId"></el-option>
                 </el-select>
-              </el-form-item>
+              </el-form-item> -->
               <el-form-item label="所属上级" prop="parentUserId">
                 <el-select v-model="queryParams.parentUserId" filterable placeholder="请选择所属上级" clearable style="width: 240px">
                   <el-option v-for="item in parentUserListForFilter" :key="item.userId" :label="item.nickName" :value="item.userId"></el-option>
@@ -85,7 +85,7 @@
               <el-table-column label="账号" align="center" key="userName" prop="userName" v-if="columns[1].visible" :show-overflow-tooltip="true" />
               <el-table-column label="用户昵称" align="center" key="nickName" prop="nickName" v-if="columns[2].visible" :show-overflow-tooltip="true" />
               <el-table-column label="角色" align="center" key="roleName" prop="roleName" v-if="columns[3].visible" :show-overflow-tooltip="true" />
-              <el-table-column label="手机号码" align="center" key="phonenumber" prop="phonenumber" v-if="columns[4].visible" width="120" />
+              <!-- <el-table-column label="手机号码" align="center" key="phonenumber" prop="phonenumber" v-if="columns[4].visible" width="120" /> -->
               <el-table-column label="状态" align="center" key="status" v-if="columns[5].visible">
                 <template #default="scope">
                   <el-switch
@@ -96,6 +96,7 @@
                   ></el-switch>
                 </template>
               </el-table-column>
+              <!-- <el-table-column label="公司管理员" align="center" key="companyUserName" prop="companyUserName" v-if="columns[6].visible" :show-overflow-tooltip="true" /> -->
               <el-table-column label="上级" align="center" key="parentUserName" prop="parentUserName" v-if="columns[6].visible" :show-overflow-tooltip="true" />
               <el-table-column label="创建时间" align="center" prop="createTime" v-if="columns[7].visible" width="160">
                 <template #default="scope">
@@ -212,6 +213,15 @@
             <el-form-item label="上级" prop="parentUserId">
               <el-select v-model="form.parentUserId" placeholder="请选择上级" clearable>
                 <el-option v-for="item in parentUserList" :key="item.userId" :label="item.nickName" :value="item.userId"></el-option>
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row v-if="isCompanyManagerRole">
+          <el-col :span="12">
+            <el-form-item label="所属上级" prop="parentUserId">
+              <el-select v-model="form.parentUserId" placeholder="请选择所属上级（子管理员）" clearable filterable>
+                <el-option v-for="item in subAdminList" :key="item.userId" :label="item.nickName" :value="item.userId"></el-option>
               </el-select>
             </el-form-item>
           </el-col>
@@ -386,9 +396,10 @@ const needShowCompanySelect = computed(() => {
   return roleId === 101 || roleId === 2
 })
 
-/** 判断是否需要显示上级选择（新增业务员且已选择公司时） */
+/** 判断是否需要显示上级选择（新增部长或业务员且已选择公司时） */
 const needShowParentSelect = computed(() => {
-  return form.value.roleIds === 2 && form.value.companyUserId
+  // 部长(101)和业务员(2)都可以选择上级
+  return (form.value.roleIds === 101 || form.value.roleIds === 2) && form.value.companyUserId
 })
 
 /** 通过条件过滤节点  */
@@ -610,21 +621,36 @@ function getSubAdminList() {
 
 /** 获取上级用户列表供筛选使用 */
 function getParentUserListForFilter() {
-  // 获取所有部长和业务员用户作为筛选选项
-  listUser({ roleId: 101 }).then(response => {
-    const ministerList = response.rows || []
-    listUser({ roleId: 2 }).then(res => {
-      const salesList = res.rows || []
-      parentUserListForFilter.value = [...ministerList, ...salesList]
+  // 获取所有公司管理员、部长和业务员用户作为筛选选项
+  listUser({ roleId: 102 }).then(response => {
+    const companyManagerList = response.rows || []
+    listUser({ roleId: 101 }).then(response => {
+      const ministerList = response.rows || []
+      listUser({ roleId: 2 }).then(res => {
+        const salesList = res.rows || []
+        parentUserListForFilter.value = [...companyManagerList, ...ministerList, ...salesList]
+        console.log(parentUserListForFilter.value)
+      })
     })
   })
 }
 
-/** 获取公司下的所有用户列表（用于选择上级） */
+/** 获取公司下的所有用户列表（用于选择上级）同时加上公司管理员 */
 function getParentUserList(companyUserId) {
   if (companyUserId) {
     fetchCompanyUserList(companyUserId).then(response => {
-      parentUserList.value = response.data
+      const userList = response.data || []
+      // 确保公司管理员在列表中
+      const companyManager = companyList.value.find(item => item.userId === companyUserId)
+      if (companyManager) {
+        // 检查是否已存在
+        const exists = userList.some(user => user.userId === companyUserId)
+        if (!exists) {
+          // 将公司管理员添加到列表开头
+          userList.unshift(companyManager)
+        }
+      }
+      parentUserList.value = userList
     })
   } else {
     parentUserList.value = []
@@ -644,14 +670,21 @@ function handleRoleChange(roleId) {
       getCompanyList()
     }
   }
+  
+  // 如果选择的是公司管理员角色，确保子管理员列表已加载
+  if (form.value.roleIds === 102 && isAdmin.value) {
+    if (subAdminList.value.length === 0) {
+      getSubAdminList()
+    }
+  }
 }
 
 /** 公司管理员改变时的处理 */
 function handleCompanyChange(companyUserId) {
   // 清空上级选择
   form.value.parentUserId = undefined
-  // 如果选择了公司，且角色是业务员，则加载该公司下的所有用户列表
-  if (companyUserId && form.value.roleIds === 2) {
+  // 如果选择了公司，且角色是部长或业务员，则加载该公司下的所有用户列表（包含公司管理员+部长+业务员）
+  if (companyUserId && (form.value.roleIds === 101 || form.value.roleIds === 2)) {
     getParentUserList(companyUserId)
   } else {
     parentUserList.value = []
@@ -686,10 +719,15 @@ function handleUpdate(row) {
     if (form.value.roleIds === 101 || form.value.roleIds === 2) {
       getCompanyList()
       
-      // 如果有公司且角色是业务员，则加载该公司下的所有用户列表
-      if (form.value.companyUserId && form.value.roleIds === 2) {
+      // 如果有公司且角色是部长或业务员，则加载该公司下的所有用户列表（包含公司管理员+部长+业务员）
+      if (form.value.companyUserId) {
         getParentUserList(form.value.companyUserId)
       }
+    }
+    
+    // 如果角色是公司管理员，加载子管理员列表
+    if (form.value.roleIds === 102 && isAdmin.value) {
+      getSubAdminList()
     }
   })
 }

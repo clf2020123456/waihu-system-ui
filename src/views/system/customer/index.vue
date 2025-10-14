@@ -1,5 +1,33 @@
 <template>
   <div class="app-container">
+          <!-- 一键拨号/短信操作区 -->
+          <el-col :span="12">
+        <div class="instant-action-group" style="margin-bottom: 10px;">
+          <span class="action-label">快速操作：</span>
+          <el-input
+            v-model="instantPhone"
+            placeholder="请输入手机号"
+            clearable
+            style="width: 180px;"
+            @keyup.enter="handleInstantCall"
+          />
+          <el-button
+            type="success"
+            plain
+            icon="Phone"
+            @click="handleInstantCall"
+            v-hasPermi="['system:customer:edit']"
+          >一键拨号</el-button>
+          <el-button
+            type="warning"
+            plain
+            icon="Message"
+            @click="handleInstantSms"
+            v-hasPermi="['system:customer:edit']"
+          >一键短信</el-button>
+        </div>
+      </el-col>
+      
     <el-form :model="queryParams" ref="queryRef" :inline="true" v-show="showSearch" label-width="68px">
       <el-form-item label="客户名称" prop="customerName">
         <el-input
@@ -48,9 +76,9 @@
           @keyup.enter="handleQuery"
         />
       </el-form-item>
-      <!-- 用户筛选 - 根据角色显示不同选项 -->
-      <el-form-item label="所属用户" prop="userId" v-if="showUserFilter">
-        <el-select v-model="queryParams.userId" placeholder="请选择用户" clearable filterable style="width: 200px">
+      <!-- 用户筛选 - 所有用户都显示，根据角色显示不同选项 -->
+      <el-form-item label="业务员" prop="userId">
+        <el-select v-model="queryParams.userId" placeholder="请选择业务员" clearable filterable style="width: 200px">
           <el-option
             v-for="user in userFilterList"
             :key="user.userId"
@@ -164,44 +192,22 @@
         >管理标签</el-button>
       </el-col>
       
-      <!-- 一键拨号/短信操作区 -->
-      <el-col :span="12">
-        <div class="instant-action-group" style="margin-top: 10px;">
-          <span class="action-label">快速操作：</span>
-          <el-input
-            v-model="instantPhone"
-            placeholder="请输入手机号"
-            clearable
-            style="width: 180px;"
-            @keyup.enter="handleInstantCall"
-          />
-          <el-button
-            type="success"
-            plain
-            icon="Phone"
-            @click="handleInstantCall"
-            v-hasPermi="['system:customer:edit']"
-          >一键拨号</el-button>
-          <el-button
-            type="warning"
-            plain
-            icon="Message"
-            @click="handleInstantSms"
-            v-hasPermi="['system:customer:edit']"
-          >一键短信</el-button>
-        </div>
-      </el-col>
-      
+
       <right-toolbar v-model:showSearch="showSearch" @queryTable="getList"></right-toolbar>
     </el-row>
 
     <el-table v-loading="loading" :data="customerList" @selection-change="handleSelectionChange" @sort-change="handleSortChange">
       <el-table-column type="selection" width="55" align="center" />
       <!-- <el-table-column label="客户ID" align="center" prop="id" /> -->
+      <el-table-column label="业务员" align="center" prop="userId" width="120" sortable="custom">
+        <template #default="scope">
+          {{ getUserName(scope.row.userId) }}
+        </template>
+      </el-table-column>
+      <el-table-column label="批次号" align="center" prop="batchNo" sortable="custom" />
       <el-table-column label="客户名称" align="center" prop="customerName" sortable="custom" />
       <el-table-column label="手机号" align="center" prop="phone" sortable="custom" />
-      <el-table-column label="批次号" align="center" prop="batchNo" sortable="custom" />
-      <el-table-column label="标签" align="center" prop="tags" sortable="custom">
+      <el-table-column label="客户标签" align="center" prop="tags" sortable="custom">
         <template #default="scope">
           <el-tag v-for="tag in parseTags(scope.row.tags)" :key="tag" size="small" type="info" style="margin-right: 5px;">{{ tag }}</el-tag>
         </template>
@@ -212,6 +218,7 @@
         </template>
       </el-table-column>
       <el-table-column label="消费金额" align="center" prop="consumptionAmount" sortable="custom" />
+      <el-table-column label="备注" align="center" prop="remark" sortable="custom" />
       <el-table-column label="默认短信" align="center" prop="defaultSmsContent" :show-overflow-tooltip="true" />
       <!-- <el-table-column label="所属用户ID" align="center" prop="userId" />
       <el-table-column label="所属集团用户ID" align="center" prop="groupUserId" /> -->
@@ -514,11 +521,29 @@ function parseTags(tags) {
   return tags.split(',')
 }
 
+// 根据userId获取用户名称
+function getUserName(userId) {
+  if (!userId) return '-'
+  // 先从缓存的用户映射表中查找
+  const userInfo = allUsersMap.value.get(userId)
+  if (userInfo) {
+    return userInfo.nickName || userInfo.userName
+  }
+  // 如果缓存中没有，从筛选列表中查找
+  const user = userFilterList.value.find(u => u.userId === userId)
+  if (user) {
+    return user.nickName || user.userName
+  }
+  // 都找不到，返回加载中提示
+  return '加载中...'
+}
+
 // 初始化用户权限和筛选列表
 async function initUserFilter() {
   try {
     // 获取当前用户的角色
     const roles = userStore.roles
+    const currentUserId = userStore.id
     console.log('当前用户角色:', roles)
     
     // 判断用户角色
@@ -528,29 +553,24 @@ async function initUserFilter() {
     
     if (isAdmin) {
       // 超级管理员：可以查看所有用户
-      showUserFilter.value = true
       currentUserRole.value = 'admin'
       
       // 加载所有用户
-      const res = await listUser({})
+      const res = await listUser({ pageSize: 1000 })
       userFilterList.value = res.rows || []
     } else if (isCompanyManager) {
       // 公司管理员：可以查看整个公司的员工
-      showUserFilter.value = true
       currentUserRole.value = 'companyManager'
       
       // 加载公司下所有用户（包括部长和业务员）
-      const currentUserId = userStore.id
-      const res = await listUser({ companyUserId: currentUserId })
+      const res = await listUser({ companyUserId: currentUserId, pageSize: 1000 })
       userFilterList.value = res.rows || []
     } else if (isMinister) {
       // 部长：可以查看自己和下属业务员
-      showUserFilter.value = true
       currentUserRole.value = 'minister'
       
       // 加载自己和下属业务员
-      const currentUserId = userStore.id
-      const res = await listUser({ parentUserId: currentUserId })
+      const res = await listUser({ parentUserId: currentUserId, pageSize: 1000 })
       
       // 将自己也加入列表
       const subordinates = res.rows || []
@@ -563,15 +583,65 @@ async function initUserFilter() {
         ...subordinates
       ]
     } else {
-      // 业务员或其他角色：不显示筛选
-      showUserFilter.value = false
+      // 业务员：只能查看自己的数据
       currentUserRole.value = 'salesman'
+      
+      // 业务员的筛选列表只有自己
+      userFilterList.value = [
+        {
+          userId: currentUserId,
+          userName: userStore.name,
+          nickName: userStore.nickName
+        }
+      ]
     }
     
+    // 将筛选列表中的用户信息加入映射表（用于快速查找显示）
+    userFilterList.value.forEach(user => {
+      if (user.userId) {
+        allUsersMap.value.set(user.userId, {
+          userId: user.userId,
+          userName: user.userName,
+          nickName: user.nickName
+        })
+      }
+    })
+    
+    // 同时加载所有用户信息到映射表（为了显示不在筛选列表中的业务员）
+    // 这样即使客户属于其他业务员，也能正确显示名称
+    if (isAdmin || isCompanyManager) {
+      // 管理员类角色已经加载了相关的所有用户
+      // 不需要额外加载
+    } else {
+      // 非管理员角色，额外加载所有用户信息用于显示
+      try {
+        const allUsersRes = await listUser({ pageSize: 1000 })
+        if (allUsersRes.rows) {
+          allUsersRes.rows.forEach(user => {
+            if (user.userId && !allUsersMap.value.has(user.userId)) {
+              allUsersMap.value.set(user.userId, {
+                userId: user.userId,
+                userName: user.userName,
+                nickName: user.nickName
+              })
+            }
+          })
+        }
+      } catch (error) {
+        console.error('加载所有用户信息失败:', error)
+      }
+    }
+    
+    // 设置默认筛选为当前用户
+    queryParams.value.userId = currentUserId
+    
     console.log('用户筛选列表:', userFilterList.value)
+    console.log('用户映射表大小:', allUsersMap.value.size)
+    console.log('默认筛选用户ID:', queryParams.value.userId)
   } catch (error) {
     console.error('初始化用户筛选失败:', error)
-    showUserFilter.value = false
+    // 出错时也设置为当前用户
+    queryParams.value.userId = userStore.id
   }
 }
 
@@ -658,9 +728,9 @@ const instantSmsDialogVisible = ref(false)
 const instantSmsContent = ref('')
 
 // 用户筛选相关
-const showUserFilter = ref(false) // 是否显示用户筛选
 const userFilterList = ref([]) // 用户筛选列表
 const currentUserRole = ref('') // 当前用户角色
+const allUsersMap = ref(new Map()) // 所有用户信息映射表，用于显示业务员名称
 
 // 全选全部页相关
 const selectAllPages = ref(false) // 是否选中全部页
@@ -710,7 +780,45 @@ function getList() {
     customerList.value = response.rows
     total.value = response.total
     loading.value = false
+    
+    // 提取所有的userId并加载用户信息
+    loadUserInfoForCustomers(response.rows)
   })
+}
+
+/** 加载客户列表中涉及的用户信息 */
+async function loadUserInfoForCustomers(customers) {
+  // 提取所有唯一的userId
+  const userIds = [...new Set(customers.map(c => c.userId).filter(id => id))]
+  
+  // 过滤出还没有缓存的userId
+  const uncachedUserIds = userIds.filter(id => !allUsersMap.value.has(id))
+  
+  if (uncachedUserIds.length === 0) {
+    return // 所有用户信息都已缓存
+  }
+  
+  try {
+    // 批量获取用户信息
+    const res = await listUser({ 
+      pageSize: 1000, // 获取足够多的用户
+    })
+    
+    // 将获取到的用户信息加入映射表
+    if (res.rows && res.rows.length > 0) {
+      res.rows.forEach(user => {
+        if (user.userId && uncachedUserIds.includes(user.userId)) {
+          allUsersMap.value.set(user.userId, {
+            userId: user.userId,
+            userName: user.userName,
+            nickName: user.nickName
+          })
+        }
+      })
+    }
+  } catch (error) {
+    console.error('加载用户信息失败:', error)
+  }
 }
 
 /** 处理排序变化 */
@@ -925,7 +1033,7 @@ function handleBatchCall() {
   proxy.$modal.confirm('是否确认为选中的' + ids.value.length + '个客户创建批量电话任务？').then(function() {
     // 创建任务并直接包含客户ID列表和任务类型
     const task = {
-      taskName: `批量电话任务_${new Date().getTime()}`.slice(0, 12),//获取6位数字
+      taskName: `批量电话任务_${Math.floor(Math.random() * 900000 + 100000)}`, // 生成随机6位数字
       taskStatus: '0', // 0待处理
       randomInterval: 10, // 随机间隔20秒
       remark: `批量拨打电话给${ids.value.length}个客户`,
@@ -1161,11 +1269,12 @@ allTags.value = [...DEFAULT_TAGS]
 // 然后异步加载用户自定义标签和系统字典
 loadUserDefinedTags()
 
-// 初始化用户筛选
-initUserFilter()
-
-// 加载客户列表
-getList()
+// 初始化用户筛选并加载客户列表
+// 必须等待用户筛选初始化完成（设置默认userId）后再加载列表
+initUserFilter().then(() => {
+  // 加载客户列表
+  getList()
+})
 
 </script>
 

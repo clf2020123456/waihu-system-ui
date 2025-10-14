@@ -26,6 +26,11 @@
           <i class="el-icon-collection-tag"></i>
           <span>任务: {{ activeCallData.taskName }}</span>
         </div>
+        <!-- 批次号 -->
+        <div v-if="activeCallData.batchNo" class="floating-batchNo">  
+          <i class="el-icon-document"></i>
+          <span>批次号: {{ activeCallData.batchNo }}</span>
+        </div>
         <div v-if="activeCallData.remark" class="floating-remark">
           <i class="el-icon-document"></i>
           <span>备注: {{ activeCallData.remark }}</span>
