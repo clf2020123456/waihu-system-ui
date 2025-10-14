@@ -26,6 +26,15 @@ export function getCallStatistics(query) {
   })
 }
 
+// 获取用户通话统计列表
+export function getUserCallStatistics(query) {
+  return request({
+    url: '/system/callRecord/userStatistics',
+    method: 'get',
+    params: query
+  })
+}
+
 // 新增通话记录
 export function addCallRecord(data) {
   return request({
