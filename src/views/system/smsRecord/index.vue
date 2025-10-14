@@ -146,8 +146,9 @@
         </template>
       </el-table-column>
       <el-table-column label="备注" align="center" prop="remark" :show-overflow-tooltip="true" />
-      <el-table-column label="操作" align="center" class-name="small-padding fixed-width">
+      <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="240">
         <template #default="scope">
+          <el-button link type="primary" icon="ChatDotRound" @click="handleReply(scope.row)" v-hasPermi="['system:smsRecord:edit']">回复</el-button>
           <el-button link type="primary" icon="Edit" @click="handleUpdate(scope.row)" v-hasPermi="['system:smsRecord:edit']">修改</el-button>
           <el-button link type="primary" icon="Delete" @click="handleDelete(scope.row)" v-hasPermi="['system:smsRecord:remove']">删除</el-button>
         </template>
@@ -176,6 +177,34 @@
           </el-card>
         </el-timeline-item>
       </el-timeline>
+    </el-dialog>
+
+    <!-- 回复短信对话框 -->
+    <el-dialog title="回复短信" v-model="replyDialogVisible" width="500px" append-to-body>
+      <el-form label-width="80px">
+        <el-form-item label="手机号" required>
+          <el-input v-model="replyPhone" placeholder="手机号" disabled />
+        </el-form-item>
+        <el-form-item label="客户名称">
+          <el-input v-model="replyCustomerName" placeholder="客户名称" disabled />
+        </el-form-item>
+        <el-form-item label="回复内容" required>
+          <el-input
+            v-model="replyContent"
+            type="textarea"
+            :rows="5"
+            placeholder="请输入回复内容"
+            maxlength="500"
+            show-word-limit
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="replyDialogVisible = false">取 消</el-button>
+          <el-button type="primary" @click="confirmReply">发 送</el-button>
+        </div>
+      </template>
     </el-dialog>
 
     <!-- 添加或修改短信记录对话框 -->
@@ -234,6 +263,7 @@
 <script setup name="SmsRecord">
 import { listSmsRecord, getSmsRecord, delSmsRecord, addSmsRecord, updateSmsRecord } from "@/api/system/smsRecord"
 import { listUser, getCompanyList, getMinisterList } from "@/api/system/user"
+import { addInstantRequest } from '@/api/system/instantRequest'
 
 const { proxy } = getCurrentInstance()
 
@@ -252,6 +282,11 @@ const ministerList = ref([])
 const salesmanList = ref([])
 const replyDetailOpen = ref(false)
 const replyDetailList = ref([])
+const replyDialogVisible = ref(false)
+const replyPhone = ref('')
+const replyCustomerName = ref('')
+const replyContent = ref('')
+const currentReplyRecord = ref(null)
 
 const data = reactive({
   form: {},
@@ -572,6 +607,79 @@ function handleExport() {
   }
   
   proxy.download('system/smsRecord/export', params, `smsRecord_${new Date().getTime()}.xlsx`)
+}
+
+/** 回复按钮操作 */
+function handleReply(row) {
+  currentReplyRecord.value = row
+  replyPhone.value = row.phone
+  replyCustomerName.value = row.customerName
+  replyContent.value = ''
+  replyDialogVisible.value = true
+}
+
+/** 确认发送回复 */
+function confirmReply() {
+  if (!replyContent.value || replyContent.value.trim() === '') {
+    proxy.$modal.msgWarning('请输入回复内容')
+    return
+  }
+  
+  // 1. 先发送一键短信
+  const request = {
+    phone: replyPhone.value,
+    requestType: '2', // 2=短信
+    smsContent: replyContent.value.trim(),
+    remark: '短信回复'
+  }
+  
+  addInstantRequest(request).then(() => {
+    // 2. 发送成功后更新短信记录的回复内容
+    const record = currentReplyRecord.value
+    
+    // 构建新的回复项
+    const newReply = {
+      content: replyContent.value.trim(),
+      time: new Date().toISOString(),
+      timestamp: new Date().getTime()
+    }
+    
+    // 解析现有回复内容
+    let replyList = []
+    if (record.replyContent) {
+      try {
+        const data = typeof record.replyContent === 'string' 
+          ? JSON.parse(record.replyContent) 
+          : record.replyContent
+        if (Array.isArray(data)) {
+          replyList = data
+        }
+      } catch (e) {
+        console.error('解析回复内容失败:', e)
+      }
+    }
+    
+    // 添加新回复
+    replyList.push(newReply)
+    
+    // 更新短信记录
+    const updateData = {
+      id: record.id,
+      replyContent: JSON.stringify(replyList)
+    }
+    
+    return updateSmsRecord(updateData)
+  }).then(() => {
+    proxy.$modal.msgSuccess('回复发送成功')
+    replyDialogVisible.value = false
+    replyContent.value = ''
+    currentReplyRecord.value = null
+    // 刷新列表
+    getList()
+  }).catch(error => {
+    console.error('回复发送失败:', error)
+    proxy.$modal.msgError('回复发送失败，请重试')
+  })
 }
 
 // 页面初始化
