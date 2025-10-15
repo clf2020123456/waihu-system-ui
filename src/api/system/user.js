@@ -166,3 +166,12 @@ export function getSubAdminList() {
     method: 'get'
   })
 }
+
+// 获取角色用户列表（用于通话分析筛选）
+export function getRoleUserList(roleId, params) {
+  return request({
+    url: '/system/user/roleUserList/' + roleId,
+    method: 'get',
+    params: params
+  })
+}

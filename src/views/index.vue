@@ -1,10 +1,10 @@
 <template>
   <div class="app-container home">
-    <el-row :gutter="20" style="margin-bottom: 20px;">
+    <!-- <el-row :gutter="20" style="margin-bottom: 20px;">
       <el-col :span="24">
         <h2 style="margin-top: 0;">通话数据分析</h2>
       </el-col>
-    </el-row>
+    </el-row> -->
 
     <!-- 筛选条件 -->
     <el-card class="box-card filter-card" shadow="hover">
@@ -116,7 +116,7 @@
       </el-col>
     </el-row>
 
-    <el-row :gutter="20" style="margin-top: 20px;">
+    <!-- <el-row :gutter="20" style="margin-top: 20px;">
       <el-col :xs="24" :sm="12" :lg="8">
         <el-card class="stat-card" shadow="hover">
           <div class="stat-content">
@@ -216,7 +216,7 @@
           </div>
         </el-card>
       </el-col>
-    </el-row>
+    </el-row> -->
 
     <!-- 图表区域 -->
     <el-row :gutter="20" style="margin-top: 20px;">
