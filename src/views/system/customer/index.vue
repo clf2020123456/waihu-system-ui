@@ -64,7 +64,7 @@
         </el-select>
       </el-form-item>
       <el-form-item label="客户标签" prop="tags">
-        <el-select v-model="queryParams.tags" placeholder="请选择客户标签" clearable style="width: 200px">
+        <el-select v-model="queryParams.tags" placeholder="请选择客户标签" clearable multiple collapse-tags style="width: 200px">
           <el-option v-for="tag in allTags" :key="tag.value" :label="tag.label" :value="tag.value" />
         </el-select>
       </el-form-item>
@@ -148,14 +148,14 @@
           v-hasPermi="['system:customer:export']"
         >导出</el-button>
       </el-col>
-      <el-col :span="1.5">
+      <!-- <el-col :span="1.5">
         <el-button
           type="primary"
           plain
           icon="Download"
           @click="handleDownloadTemplate"
         >下载模板</el-button>
-      </el-col>
+      </el-col> -->
       <el-col :span="1.5">
         <el-button
           type="primary"
@@ -386,10 +386,11 @@
     </el-dialog>
 
     <!-- 导入对话框 -->
-    <el-dialog title="导入客户" v-model="importDialogVisible" width="400px" append-to-body>
+    <el-dialog title="导入客户" v-model="importDialogVisible" width="500px" append-to-body>
       <div class="import-section">
         <el-upload
           ref="upload"
+          drag
           :limit="1"
           accept=".xlsx, .xls"
           :action="importUrl"
@@ -399,22 +400,29 @@
           :auto-upload="false"
           :show-file-list="true"
           :on-change="handleFileChange"
+          :on-exceed="handleExceed"
           class="upload-demo"
         >
-          <el-button type="primary">选择文件</el-button>
+          <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+          <div class="el-upload__text">
+            将文件拖到此处，或<em>点击上传</em>
+          </div>
           <template #tip>
-            <div class="el-upload__tip text-center">
-              <span>支持 .xlsx, .xls 格式</span>
-              <el-button type="text" @click="handleDownloadTemplate">下载模板</el-button>
+            <div class="el-upload__tip">
+              <div style="color: #606266; margin-bottom: 5px;">
+                <i class="el-icon-info"></i> 支持 .xlsx, .xls 格式，单次最多上传1个文件
+              </div>
+              <el-button type="text" icon="Download" @click="handleDownloadTemplate">下载导入模板</el-button>
             </div>
           </template>
         </el-upload>
         <div class="import-tips">
-          <h4>导入说明：</h4>
+          <h4>📋 导入说明：</h4>
           <ul>
             <li>1. 导入字段：客户名称、手机号码、批次号、消费金额、默认短信内容、备注</li>
             <li>2. 客户名称和手机号码为必填项</li>
             <li>3. 请严格按照模板格式填写数据</li>
+            <li>4. 建议先下载模板，按格式填写后再上传</li>
           </ul>
         </div>
       </div>
@@ -749,7 +757,7 @@ const data = reactive({
     customerName: null,
     phone: null,
     batchNo: null,
-    tags: null, // 修改为单个值，支持单选
+    tags: [], // 修改为数组，支持多选
     smsStatus: null,
     consumptionAmount: null,
     userId: null,
@@ -1071,9 +1079,15 @@ function handleFollowUp(row) {
 
 /** 导出按钮操作 */
 function handleExport() {
-  proxy.download('system/customer/export', {
-    ...queryParams.value
-  }, `customer_${new Date().getTime()}.xlsx`)
+  // 处理导出参数，将tags数组转换为逗号分隔的字符串
+  const exportParams = { ...queryParams.value }
+  if (exportParams.tags && Array.isArray(exportParams.tags) && exportParams.tags.length > 0) {
+    exportParams.tags = exportParams.tags.join(',')
+  } else if (exportParams.tags && Array.isArray(exportParams.tags) && exportParams.tags.length === 0) {
+    exportParams.tags = null
+  }
+  
+  proxy.download('system/customer/export', exportParams, `customer_${new Date().getTime()}.xlsx`)
 }
 
 /** 下载模板按钮操作 */
@@ -1120,6 +1134,11 @@ function handleImport() {
 /** 文件选择变化处理 */
 function handleFileChange(file, fileList) {
   hasFileSelected.value = fileList.length > 0
+}
+
+/** 文件超出个数限制处理 */
+function handleExceed(files, fileList) {
+  proxy.$modal.msgWarning(`当前限制选择 1 个文件，请先删除已选文件后再选择新文件`)
 }
 
 /** 提交导入 */
@@ -1350,10 +1369,55 @@ initUserFilter().then(() => {
   padding: 10px 0;
 }
 
+.upload-demo {
+  width: 100%;
+}
+
+/* 拖拽上传区域样式 */
+:deep(.el-upload-dragger) {
+  padding: 40px 20px;
+  background: #fafafa;
+  border: 2px dashed #d9d9d9;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+:deep(.el-upload-dragger:hover) {
+  border-color: #409eff;
+  background: #f0f7ff;
+}
+
+:deep(.el-icon--upload) {
+  font-size: 67px;
+  color: #c0c4cc;
+  margin-bottom: 16px;
+  line-height: 50px;
+}
+
+:deep(.el-upload__text) {
+  color: #606266;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+:deep(.el-upload__text em) {
+  color: #409eff;
+  font-style: normal;
+  font-weight: 500;
+}
+
+:deep(.el-upload__tip) {
+  margin-top: 12px;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.8;
+}
+
 .import-tips {
   margin-top: 20px;
   padding: 15px;
-  background-color: #f5f7fa;
+  background: linear-gradient(135deg, #f5f7fa 0%, #e8edf3 100%);
+  border-left: 4px solid #409eff;
   border-radius: 4px;
 }
 

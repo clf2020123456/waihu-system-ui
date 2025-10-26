@@ -1,62 +1,5 @@
 <template>
   <div class="app-container home">
-    <!-- <el-row :gutter="20" style="margin-bottom: 20px;">
-      <el-col :span="24">
-        <h2 style="margin-top: 0;">通话数据分析</h2>
-      </el-col>
-    </el-row> -->
-
-    <!-- 筛选条件 -->
-    <el-card class="box-card filter-card" shadow="hover">
-      <el-form :model="queryParams" ref="queryForm" :inline="true">
-        <el-form-item label="公司管理员" prop="companyUserId">
-          <el-select v-model="queryParams.companyUserId" placeholder="请选择公司" clearable style="width: 200px;" @change="handleCompanyChange">
-            <el-option
-              v-for="company in companyList"
-              :key="company.userId"
-              :label="company.nickName"
-              :value="company.userId"
-            ></el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item label="部长" prop="ministerUserId">
-          <el-select v-model="queryParams.ministerUserId" placeholder="请选择部长" clearable style="width: 200px;" @change="handleMinisterChange">
-            <el-option
-              v-for="minister in ministerList"
-              :key="minister.userId"
-              :label="minister.nickName"
-              :value="minister.userId"
-            ></el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item label="业务员" prop="salesmanUserId">
-          <el-select v-model="queryParams.salesmanUserId" placeholder="请选择业务员" clearable style="width: 200px;" @change="getStatistics">
-            <el-option
-              v-for="salesman in salesmanList"
-              :key="salesman.userId"
-              :label="salesman.nickName"
-              :value="salesman.userId"
-            ></el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item label="时间范围" prop="dateRange">
-          <el-date-picker
-            v-model="dateRange"
-            type="daterange"
-            range-separator="-"
-            start-placeholder="开始日期"
-            end-placeholder="结束日期"
-            value-format="YYYY-MM-DD"
-            style="width: 280px;"
-          ></el-date-picker>
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" icon="el-icon-search" @click="handleQuery">查询</el-button>
-          <el-button icon="el-icon-refresh" @click="resetQuery">重置</el-button>
-        </el-form-item>
-      </el-form>
-    </el-card>
-
     <!-- 统计数据卡片 -->
     <el-row :gutter="20" style="margin-top: 20px;">
       <el-col :xs="24" :sm="12" :lg="6">
@@ -243,20 +186,9 @@
 
 <script setup name="Index">
 import { ref, onMounted, nextTick } from 'vue'
-import { getCallStatistics } from '@/api/system/callRecord'
-import { listUser, getCompanyList, getMinisterList } from '@/api/system/user'
+import { getMyCallStatistics } from '@/api/system/callRecord'
 import * as echarts from 'echarts'
 
-const queryParams = ref({
-  companyUserId: null,
-  ministerUserId: null,
-  salesmanUserId: null
-})
-
-const dateRange = ref([])
-const companyList = ref([])
-const ministerList = ref([])
-const salesmanList = ref([])
 const statistics = ref({
   totalCallDuration: 0,
   uniquePhoneCount: 0,
@@ -290,20 +222,9 @@ function formatDuration(seconds) {
   return result
 }
 
-// 查询统计数据
+// 查询统计数据（只统计当前用户自己的数据）
 function getStatistics() {
-  const params = {
-    companyUserId: queryParams.value.companyUserId,
-    ministerUserId: queryParams.value.ministerUserId,
-    salesmanUserId: queryParams.value.salesmanUserId
-  }
-  
-  if (dateRange.value && dateRange.value.length === 2) {
-    params.startTime = dateRange.value[0] + ' 00:00:00'
-    params.endTime = dateRange.value[1] + ' 23:59:59'
-  }
-  
-  getCallStatistics(params).then(response => {
+  getMyCallStatistics({}).then(response => {
     statistics.value = response.data || {
       totalCallDuration: 0,
       uniquePhoneCount: 0,
@@ -323,95 +244,6 @@ function getStatistics() {
       initCharts()
     })
   })
-}
-
-// 获取公司列表
-function fetchCompanyList() {
-  getCompanyList().then(response => {
-    companyList.value = response.data || []
-  })
-}
-
-// 获取部长列表
-function fetchMinisterList(companyUserId) {
-  if (companyUserId) {
-    getMinisterList(companyUserId).then(response => {
-      ministerList.value = response.data || []
-    })
-  } else {
-    ministerList.value = []
-  }
-}
-
-// 获取业务员列表（指定部长的下属）
-function fetchSalesmanList(ministerUserId) {
-  if (ministerUserId) {
-    // 查询指定部长下的业务员
-    listUser({ parentUserId: ministerUserId, roleId: 2 }).then(response => {
-      salesmanList.value = response.rows || []
-    })
-  } else if (queryParams.value.companyUserId) {
-    // 如果选了公司但没选部长，查询该公司下的所有业务员
-    listUser({ companyUserId: queryParams.value.companyUserId, roleId: 2 }).then(response => {
-      salesmanList.value = response.rows || []
-    })
-  } else {
-    salesmanList.value = []
-  }
-}
-
-// 公司选择变化
-function handleCompanyChange(companyUserId) {
-  // 清空部长和业务员选择
-  queryParams.value.ministerUserId = null
-  queryParams.value.salesmanUserId = null
-  ministerList.value = []
-  salesmanList.value = []
-  
-  // 加载该公司下的部长列表
-  if (companyUserId) {
-    fetchMinisterList(companyUserId)
-    fetchSalesmanList(null) // 加载该公司下的所有业务员
-  }
-  
-  // 自动刷新统计数据
-  getStatistics()
-}
-
-// 部长选择变化
-function handleMinisterChange(ministerUserId) {
-  // 清空业务员选择
-  queryParams.value.salesmanUserId = null
-  salesmanList.value = []
-  
-  // 加载该部长下的业务员列表
-  if (ministerUserId) {
-    fetchSalesmanList(ministerUserId)
-  } else if (queryParams.value.companyUserId) {
-    // 如果清空了部长但还有公司，加载公司下的所有业务员
-    fetchSalesmanList(null)
-  }
-  
-  // 自动刷新统计数据
-  getStatistics()
-}
-
-// 查询
-function handleQuery() {
-  getStatistics()
-}
-
-// 重置
-function resetQuery() {
-  queryParams.value = {
-    companyUserId: null,
-    ministerUserId: null,
-    salesmanUserId: null
-  }
-  dateRange.value = []
-  ministerList.value = []
-  salesmanList.value = []
-  getStatistics()
 }
 
 // 初始化图表
@@ -547,7 +379,6 @@ window.addEventListener('resize', () => {
 })
 
 onMounted(() => {
-  fetchCompanyList()
   getStatistics()
 })
 </script>
@@ -557,18 +388,6 @@ onMounted(() => {
   padding: 20px;
   background: #f0f2f5;
   min-height: calc(100vh - 84px);
-}
-
-.filter-card {
-  margin-bottom: 20px;
-  
-  ::v-deep .el-card__body {
-    padding: 15px 20px;
-  }
-  
-  .el-form {
-    margin-bottom: 0;
-  }
 }
 
 .stat-card {

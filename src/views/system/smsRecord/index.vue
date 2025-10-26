@@ -146,6 +146,7 @@
         </template>
       </el-table-column>
       <el-table-column label="备注" align="center" prop="remark" :show-overflow-tooltip="true" />
+      <el-table-column label="创建时间" align="center" prop="createTime" width="180" />
       <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="240">
         <template #default="scope">
           <el-button link type="primary" icon="ChatDotRound" @click="handleReply(scope.row)" v-hasPermi="['system:smsRecord:edit']">回复</el-button>

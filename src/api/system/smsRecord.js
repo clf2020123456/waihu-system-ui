@@ -51,3 +51,12 @@ export function getSmsStatistics(query) {
     params: query
   })
 }
+
+// 获取用户短信统计树形列表
+export function getUserSmsStatisticsTree(query) {
+  return request({
+    url: '/system/smsRecord/userStatisticsTree',
+    method: 'get',
+    params: query
+  })
+}

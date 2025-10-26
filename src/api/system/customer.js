@@ -2,11 +2,15 @@ import request from '@/utils/request'
 
 // 查询客户列表
 export function listCustomer(query) {
-  // 处理数组参数，确保tags数组正确传递
+  // 处理数组参数，将tags数组转换为逗号分隔的字符串
   const params = { ...query }
-  if (params.tags && Array.isArray(params.tags)) {
-    // 对于数组参数，axios会自动处理为 tags[] 格式
+  if (params.tags && Array.isArray(params.tags) && params.tags.length > 0) {
+    // 将数组转换为逗号分隔的字符串
+    params.tags = params.tags.join(',')
     console.log('发送的tags参数:', params.tags)
+  } else if (params.tags && Array.isArray(params.tags) && params.tags.length === 0) {
+    // 如果是空数组，设置为null或undefined，避免发送空字符串
+    params.tags = null
   }
   return request({
     url: '/system/customer/list',

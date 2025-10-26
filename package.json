@@ -1,7 +1,7 @@
 {
   "name": "ruoyi",
   "version": "3.9.0",
-  "description": "智拨号手机系统",
+  "description": "手机智拨号系统",
   "author": "智拨号",
   "license": "MIT",
   "type": "module",

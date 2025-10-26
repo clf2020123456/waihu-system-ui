@@ -26,10 +26,28 @@ export function getCallStatistics(query) {
   })
 }
 
+// 获取当前用户个人通话统计数据
+export function getMyCallStatistics(query) {
+  return request({
+    url: '/system/callRecord/myStatistics',
+    method: 'get',
+    params: query
+  })
+}
+
 // 获取用户通话统计列表
 export function getUserCallStatistics(query) {
   return request({
     url: '/system/callRecord/userStatistics',
+    method: 'get',
+    params: query
+  })
+}
+
+// 获取用户下级通话统计列表（树形展示）
+export function getUserCallStatisticsTree(query) {
+  return request({
+    url: '/system/callRecord/userStatisticsTree',
     method: 'get',
     params: query
   })

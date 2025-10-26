@@ -51,6 +51,9 @@
                   <el-option v-for="item in parentUserListForFilter" :key="item.userId" :label="item.nickName" :value="item.userId"></el-option>
                 </el-select>
               </el-form-item>
+              <el-form-item label="备注" prop="remark">
+                <el-input v-model="queryParams.remark" placeholder="请输入备注" clearable style="width: 240px" @keyup.enter="handleQuery" />
+              </el-form-item>
               <el-form-item label="创建时间" style="width: 308px">
                 <el-date-picker v-model="dateRange" value-format="YYYY-MM-DD" type="daterange" range-separator="-" start-placeholder="开始日期" end-placeholder="结束日期"></el-date-picker>
               </el-form-item>
@@ -98,7 +101,8 @@
               </el-table-column>
               <!-- <el-table-column label="公司管理员" align="center" key="companyUserName" prop="companyUserName" v-if="columns[6].visible" :show-overflow-tooltip="true" /> -->
               <el-table-column label="上级" align="center" key="parentUserName" prop="parentUserName" v-if="columns[6].visible" :show-overflow-tooltip="true" />
-              <el-table-column label="创建时间" align="center" prop="createTime" v-if="columns[7].visible" width="160">
+              <el-table-column label="备注" align="center" key="remark" prop="remark" v-if="columns[7].visible" :show-overflow-tooltip="true" />
+              <el-table-column label="创建时间" align="center" prop="createTime" v-if="columns[8].visible" width="160">
                 <template #default="scope">
                   <span>{{ parseTime(scope.row.createTime) }}</span>
                 </template>
@@ -201,27 +205,12 @@
             </el-form-item>
           </el-col>
         </el-row>
-        <el-row v-if="needShowCompanySelect">
+        <!-- 统一的上级选择 -->
+        <el-row>
           <el-col :span="12">
-            <el-form-item label="所属公司管理员" prop="companyUserId">
-              <el-select v-model="form.companyUserId" placeholder="请选择所属公司管理员" clearable @change="handleCompanyChange">
-                <el-option v-for="item in companyList" :key="item.userId" :label="item.nickName" :value="item.userId"></el-option>
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :span="12" v-if="needShowParentSelect">
             <el-form-item label="上级" prop="parentUserId">
-              <el-select v-model="form.parentUserId" placeholder="请选择上级" clearable>
-                <el-option v-for="item in parentUserList" :key="item.userId" :label="item.nickName" :value="item.userId"></el-option>
-              </el-select>
-            </el-form-item>
-          </el-col>
-        </el-row>
-        <el-row v-if="isCompanyManagerRole">
-          <el-col :span="12">
-            <el-form-item label="所属上级" prop="parentUserId">
-              <el-select v-model="form.parentUserId" placeholder="请选择所属上级（子管理员）" clearable filterable>
-                <el-option v-for="item in subAdminList" :key="item.userId" :label="item.nickName" :value="item.userId"></el-option>
+              <el-select v-model="form.parentUserId" placeholder="请选择上级" clearable filterable>
+                <el-option v-for="item in parentUserList" :key="item.userId" :label="item.nickName + ' (' + item.roleName + ')'" :value="item.userId"></el-option>
               </el-select>
             </el-form-item>
           </el-col>
@@ -229,12 +218,12 @@
         <el-row v-if="isCompanyManagerRole">
           <el-col :span="12">
             <el-form-item label="使用人数" prop="maxUserCount">
-              <el-input-number v-model="form.maxUserCount" :min="1" :max="10000" placeholder="请输入使用人数" style="width: 100%;" />
+              <el-input-number v-model="form.maxUserCount" :min="1" :max="10000" :disabled="isEditingSelf" placeholder="请输入使用人数" style="width: 100%;" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="到期时间" prop="expiryDate">
-              <el-date-picker v-model="form.expiryDate" type="datetime" placeholder="请选择到期时间" value-format="YYYY-MM-DD HH:mm:ss" style="width: 100%;" />
+              <el-date-picker v-model="form.expiryDate" type="datetime" :disabled="isEditingSelf" placeholder="请选择到期时间" value-format="YYYY-MM-DD HH:mm:ss" style="width: 100%;" />
             </el-form-item>
           </el-col>
         </el-row>
@@ -312,6 +301,7 @@ const companyList = ref([])
 const subAdminList = ref([])
 const parentUserList = ref([])
 const parentUserListForFilter = ref([])
+const currentUserRoleId = ref(null) // 当前用户的角色ID
 
 /** 判断当前用户是否是超级管理员 */
 const isAdmin = computed(() => {
@@ -342,7 +332,8 @@ const columns = ref([
   { key: 4, label: `手机号码`, visible: true },
   { key: 5, label: `状态`, visible: true },
   { key: 6, label: `上级`, visible: true },
-  { key: 7, label: `创建时间`, visible: true }
+  { key: 7, label: `备注`, visible: true },
+  { key: 8, label: `创建时间`, visible: true }
 ])
 
 const data = reactive({
@@ -358,6 +349,7 @@ const data = reactive({
     subAdminUserId: undefined,
     companyUserId: undefined,
     parentUserId: undefined,
+    remark: undefined,
     deptId: undefined
   },
   rules: {
@@ -367,18 +359,7 @@ const data = reactive({
     password: [{ required: true, message: "用户密码不能为空", trigger: "blur" }, { min: 5, max: 20, message: "用户密码长度必须介于 5 和 20 之间", trigger: "blur" }, { pattern: /^[^<>"'|\\]+$/, message: "不能包含非法字符：< > \" ' \\\ |", trigger: "blur" }],
     email: [{ type: "email", message: "请输入正确的邮箱地址", trigger: ["blur", "change"] }],
     phonenumber: [{ pattern: /^1[3|4|5|6|7|8|9][0-9]\d{8}$/, message: "请输入正确的手机号码", trigger: "blur" }],
-    companyUserId: [{ 
-      validator: (rule, value, callback) => {
-        // 如果角色是部长司选择，则公司必填
-        if ((form.roleIds === 101 || form.roleIds === 2) && !value) {
-          callback(new Error('所属公司管理员不能为空'))
-        } else {
-          callback()
-        }
-      }, 
-      trigger: "change" 
-    }]
-    // parentUserId 改为可选，业务员可以不选择上级
+    // parentUserId 为可选字段
   }
 })
 
@@ -389,17 +370,9 @@ const isCompanyManagerRole = computed(() => {
   return form.value.roleIds === 102
 })
 
-/** 判断是否需要显示公司选择（超级管理员或子管理员新增部长或业务员时） */
-const needShowCompanySelect = computed(() => {
-  const roleId = form.value.roleIds
-  // 角色是部长(101)或业务员(2)时需要选择公司
-  return roleId === 101 || roleId === 2
-})
-
-/** 判断是否需要显示上级选择（新增部长或业务员且已选择公司时） */
-const needShowParentSelect = computed(() => {
-  // 部长(101)和业务员(2)都可以选择上级
-  return (form.value.roleIds === 101 || form.value.roleIds === 2) && form.value.companyUserId
+/** 判断当前编辑的用户是否是自己 */
+const isEditingSelf = computed(() => {
+  return form.value.userId && form.value.userId === userStore.id
 })
 
 /** 通过条件过滤节点  */
@@ -621,79 +594,226 @@ function getSubAdminList() {
 
 /** 获取上级用户列表供筛选使用 */
 function getParentUserListForFilter() {
-  // 获取所有公司管理员、部长和业务员用户作为筛选选项
-  listUser({ roleId: 102 }).then(response => {
+  // 获取所有公司管理员和部长用户作为筛选选项
+  // 注意：业务员不能作为上级，所以不包含在列表中
+  listUser({ roleId: 102, pageSize: 1000 }).then(response => {
     const companyManagerList = response.rows || []
-    listUser({ roleId: 101 }).then(response => {
+    listUser({ roleId: 101, pageSize: 1000 }).then(response => {
       const ministerList = response.rows || []
-      listUser({ roleId: 2 }).then(res => {
-        const salesList = res.rows || []
-        parentUserListForFilter.value = [...companyManagerList, ...ministerList, ...salesList]
-        console.log(parentUserListForFilter.value)
-      })
+      parentUserListForFilter.value = [...companyManagerList, ...ministerList]
     })
   })
 }
 
-/** 获取公司下的所有用户列表（用于选择上级）同时加上公司管理员 */
-function getParentUserList(companyUserId) {
-  if (companyUserId) {
-    fetchCompanyUserList(companyUserId).then(response => {
-      const userList = response.data || []
-      // 确保公司管理员在列表中
-      const companyManager = companyList.value.find(item => item.userId === companyUserId)
-      if (companyManager) {
-        // 检查是否已存在
-        const exists = userList.some(user => user.userId === companyUserId)
-        if (!exists) {
-          // 将公司管理员添加到列表开头
-          userList.unshift(companyManager)
+/** 根据当前用户角色和选择的角色动态获取上级用户列表 */
+function getParentUserList(selectedRoleId) {
+  parentUserList.value = []
+  
+  if (!selectedRoleId) {
+    return
+  }
+  
+  // 获取当前登录用户信息
+  const currentUserId = userStore.id  // 注意：userStore中用户ID的属性名是 id
+  const currentUserName = userStore.nickName || userStore.name
+  const isCurrentAdmin = isAdmin.value // 超级管理员
+  
+  // 构建需要查询的角色列表
+  let roleIdsToQuery = []
+  let includeCurrentUser = false
+  let currentUserRoleName = ''
+  
+  // 超级管理员（admin）
+  if (isCurrentAdmin) {
+    includeCurrentUser = true
+    currentUserRoleName = '超级管理员'
+    
+    // 新增子管理员：上级可以是超级管理员自己
+    if (selectedRoleId === 103) {
+      parentUserList.value = [{
+        userId: currentUserId,
+        nickName: currentUserName,
+        roleName: '超级管理员'
+      }]
+      return
+    }
+    // 新增公司管理员：上级可以是超级管理员、子管理员
+    else if (selectedRoleId === 102) {
+      roleIdsToQuery = [103] // 子管理员
+    }
+    // 新增部长：上级可以是超级管理员、子管理员、公司管理员
+    else if (selectedRoleId === 101) {
+      roleIdsToQuery = [103, 102] // 子管理员、公司管理员
+    }
+    // 新增业务员：上级可以是超级管理员、子管理员、公司管理员、部长
+    else if (selectedRoleId === 2) {
+      roleIdsToQuery = [103, 102, 101] // 子管理员、公司管理员、部长
+    }
+  }
+  // 如果是子管理员
+  else if (currentUserRoleId.value === 103) {
+    includeCurrentUser = true
+    currentUserRoleName = '子管理员'
+    
+    // 新增公司管理员：上级可以是子管理员自己
+    if (selectedRoleId === 102) {
+      // 只显示当前子管理员自己
+      parentUserList.value = [{
+        userId: currentUserId,
+        nickName: currentUserName,
+        roleName: '子管理员'
+      }]
+      return
+    }
+    // 新增部长：上级可以是子管理员、公司管理员
+    else if (selectedRoleId === 101) {
+      roleIdsToQuery = [103, 102] // 子管理员、公司管理员
+    }
+    // 新增业务员：上级可以是子管理员、公司管理员、部长
+    else if (selectedRoleId === 2) {
+      roleIdsToQuery = [103, 102, 101] // 子管理员、公司管理员、部长
+    }
+  }
+  // 如果是公司管理员
+  else if (currentUserRoleId.value === 102) {
+    includeCurrentUser = true
+    currentUserRoleName = '公司管理员'
+    
+    // 新增部长：上级可以是公司管理员自己
+    if (selectedRoleId === 101) {
+      // 只显示当前公司管理员自己
+      parentUserList.value = [{
+        userId: currentUserId,
+        nickName: currentUserName,
+        roleName: '公司管理员'
+      }]
+      return
+    }
+    // 新增业务员：上级可以是公司管理员自己、部长
+    else if (selectedRoleId === 2) {
+      // 查询当前公司下的所有部长
+      listUser({ roleId: 101, companyUserId: currentUserId, pageSize: 1000 }).then(response => {
+        const ministerList = response.rows || []
+        // 将公司管理员自己添加到列表开头
+        parentUserList.value = [
+          {
+            userId: currentUserId,
+            nickName: currentUserName,
+            roleName: '公司管理员'
+          },
+          ...ministerList
+        ]
+      })
+      return
+    }
+  }
+  // 如果是部长
+  else if (currentUserRoleId.value === 101) {
+    // 新增业务员：上级只能是部长自己
+    if (selectedRoleId === 2) {
+      parentUserList.value = [{
+        userId: currentUserId,
+        nickName: currentUserName,
+        roleName: '部长'
+      }]
+      return
+    }
+  }
+  
+  // 查询用户列表
+  if (roleIdsToQuery.length > 0) {
+    const promises = roleIdsToQuery.map(roleId => {
+      return listUser({ roleId: roleId, pageSize: 1000 }).then(response => response.rows || [])
+    })
+    
+    Promise.all(promises).then(results => {
+      // 合并所有结果
+      let allUsers = []
+      results.forEach(users => {
+        allUsers = allUsers.concat(users)
+      })
+      
+      // 过滤掉非当前用户的超级管理员（roleId=1）和所有业务员（roleId=2）
+      // 业务员不能作为任何人的上级
+      allUsers = allUsers.filter(user => {
+        // 检查用户的角色
+        let isSuperAdmin = false
+        let isSalesman = false
+        
+        if (user.roles && user.roles.length > 0) {
+          isSuperAdmin = user.roles[0].roleId === 1
+          isSalesman = user.roles[0].roleId === 2
+        } else if (user.roleName === '超级管理员' || user.roleName === 'admin') {
+          isSuperAdmin = true
+        } else if (user.roleName === '业务员') {
+          isSalesman = true
+        }
+        
+        // 业务员永远不能作为上级
+        if (isSalesman) {
+          return false
+        }
+        
+        // 如果是超级管理员，只保留当前登录用户本人
+        if (isSuperAdmin) {
+          return user.userId === currentUserId
+        }
+        return true
+      })
+      
+      // 对于子管理员，需要过滤出可选的用户
+      if (!isCurrentAdmin && currentUserRoleId.value === 103) {
+        // 如果是新增公司管理员、部长或业务员，需要根据数据权限过滤
+        if (selectedRoleId === 101 || selectedRoleId === 2) {
+          // 过滤出当前用户管理范围内的用户
+          allUsers = allUsers.filter(user => user.subAdminUserId === currentUserId || user.userId === currentUserId)
         }
       }
-      parentUserList.value = userList
+      
+      // 如果需要包含当前用户，添加到列表开头
+      if (includeCurrentUser) {
+        const currentUser = {
+          userId: currentUserId,
+          nickName: currentUserName,
+          roleName: currentUserRoleName
+        }
+        // 检查当前用户是否已在列表中
+        const existsInList = allUsers.some(user => user.userId === currentUserId)
+        if (!existsInList) {
+          allUsers.unshift(currentUser)
+        }
+      }
+      if(allUsers[0]&&allUsers[0].roleName=='超级管理员'){
+        allUsers[0].userId=1
+      }
+      parentUserList.value = allUsers
     })
-  } else {
-    parentUserList.value = []
   }
 }
 
 /** 角色改变时的处理 */
 function handleRoleChange(roleId) {
-  // 清空公司和上级选择
-  form.value.companyUserId = undefined
+  // 清空上级选择
   form.value.parentUserId = undefined
   parentUserList.value = []
   
-  // 如果选择的是部长或业务员角色，加载公司列表
-  if (form.value.roleIds === 101 || form.value.roleIds === 2) {
-    if (companyList.value.length === 0) {
-      getCompanyList()
-    }
-  }
-  
-  // 如果选择的是公司管理员角色，确保子管理员列表已加载
-  if (form.value.roleIds === 102 && isAdmin.value) {
-    if (subAdminList.value.length === 0) {
-      getSubAdminList()
-    }
-  }
-}
-
-/** 公司管理员改变时的处理 */
-function handleCompanyChange(companyUserId) {
-  // 清空上级选择
-  form.value.parentUserId = undefined
-  // 如果选择了公司，且角色是部长或业务员，则加载该公司下的所有用户列表（包含公司管理员+部长+业务员）
-  if (companyUserId && (form.value.roleIds === 101 || form.value.roleIds === 2)) {
-    getParentUserList(companyUserId)
-  } else {
-    parentUserList.value = []
-  }
+  // 根据选择的角色加载对应的上级用户列表
+  getParentUserList(roleId)
 }
 
 /** 新增按钮操作 */
 function handleAdd() {
   reset()
+  
+  // 确保当前用户角色ID已加载
+  if (!currentUserRoleId.value && userStore.id) {
+    getUser(userStore.id).then(response => {
+      if (response.data && response.data.roles && response.data.roles.length > 0) {
+        currentUserRoleId.value = response.data.roles[0].roleId
+      }
+    })
+  }
+  
   getUser().then(response => {
     roleOptions.value = response.roles
     open.value = true
@@ -715,19 +835,34 @@ function handleUpdate(row) {
     title.value = "修改用户"
     form.password = ""
     
-    // 如果角色需要显示公司选择，加载公司列表
-    if (form.value.roleIds === 101 || form.value.roleIds === 2) {
-      getCompanyList()
+    // 保存当前的parentUserId和parentUserName
+    const currentParentUserId = form.value.parentUserId
+    const currentParentUserName = form.value.parentUserName
       
-      // 如果有公司且角色是部长或业务员，则加载该公司下的所有用户列表（包含公司管理员+部长+业务员）
-      if (form.value.companyUserId) {
-        getParentUserList(form.value.companyUserId)
-      }
-    }
-    
-    // 如果角色是公司管理员，加载子管理员列表
-    if (form.value.roleIds === 102 && isAdmin.value) {
-      getSubAdminList()
+    // 根据角色加载上级用户列表
+    if (form.value.roleIds) {
+      getParentUserList(form.value.roleIds)
+      
+      // 如果当前有上级用户，且上级不在列表中，需要添加进去
+      // 使用 setTimeout 延迟执行，确保异步加载完成
+      setTimeout(() => {
+        if (currentParentUserId && currentParentUserName) {
+          // 使用宽松相等比较，因为可能存在类型不一致的问题
+          const exists = parentUserList.value.some(user => user.userId == currentParentUserId)
+          if (!exists) {
+            // 如果上级是超级管理员（userId=1）或其他不在列表中的用户，添加到列表
+            // 确保userId类型一致（保持为数字类型）
+            const userIdNum = Number(currentParentUserId)
+            parentUserList.value.unshift({
+              userId: userIdNum,
+              nickName: currentParentUserName,
+              roleName: userIdNum === 1 ? '超级管理员' : form.value.parentUserRoleName || '未知'
+            })
+          }
+          // 确保form.parentUserId是数字类型
+          form.value.parentUserId = Number(currentParentUserId)
+        }
+      }, 300)
     }
   })
 }
@@ -759,6 +894,30 @@ function submitForm() {
   })
 }
 
+/** 获取当前用户的角色ID */
+function getCurrentUserRoleId() {
+  // 如果当前用户ID不存在，延迟一次重试
+  if (!userStore.id) {
+    setTimeout(() => {
+      if (userStore.id) {
+        getUser(userStore.id).then(response => {
+          if (response.data && response.data.roles && response.data.roles.length > 0) {
+            currentUserRoleId.value = response.data.roles[0].roleId
+          }
+        })
+      }
+    }, 500)
+    return
+  }
+  
+  // 通过API获取当前用户信息
+  getUser(userStore.id).then(response => {
+    if (response.data && response.data.roles && response.data.roles.length > 0) {
+      currentUserRoleId.value = response.data.roles[0].roleId
+    }
+  })
+}
+
 onMounted(() => {
   getDeptTree()
   getList()
@@ -775,5 +934,7 @@ onMounted(() => {
   getSubAdminList()
   // 获取上级用户列表供筛选使用
   getParentUserListForFilter()
+  // 获取当前用户的角色ID
+  getCurrentUserRoleId()
 })
 </script>
