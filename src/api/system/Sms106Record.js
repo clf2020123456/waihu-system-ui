@@ -42,3 +42,12 @@ export function delSms106Record(id) {
     method: 'delete'
   })
 }
+
+// 获取用户106短信统计树形列表
+export function getUserSms106StatisticsTree(query) {
+  return request({
+    url: '/system/Sms106Record/userStatisticsTree',
+    method: 'get',
+    params: query
+  })
+}

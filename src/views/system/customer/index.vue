@@ -1060,9 +1060,36 @@ function handleBatchCall() {
 /** 删除按钮操作 */
 function handleDelete(row) {
   const _ids = row.id || ids.value
-  proxy.$modal.confirm('是否确认删除客户编号为"' + _ids + '"的数据项？').then(function() {
+  
+  // 构建确认消息
+  let confirmMessage = ''
+  if (row.id) {
+    // 单行删除
+    confirmMessage = `是否确认删除客户编号为"${_ids}"的数据项？`
+  } else if (selectAllPages.value) {
+    // 全选删除
+    confirmMessage = `您已勾选全部页，是否确认删除所有选中的 ${allPageIds.value.length} 条客户数据？此操作不可恢复！`
+  } else {
+    // 批量删除
+    confirmMessage = `是否确认删除选中的 ${ids.value.length} 条客户数据？`
+  }
+  
+  proxy.$modal.confirm(confirmMessage, '警告', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'warning'
+  }).then(function() {
     return delCustomer(_ids)
   }).then(() => {
+    // 删除成功后，如果是全选状态，需要取消全选
+    if (selectAllPages.value) {
+      selectAllPages.value = false
+      allPageIds.value = []
+      ids.value = []
+      single.value = true
+      multiple.value = true
+    }
+    
     getList()
     proxy.$modal.msgSuccess("删除成功")
   }).catch(error => {
@@ -1217,10 +1244,10 @@ function handleInstantCall() {
   
   // 简单验证手机号格式
   const phoneRegex = /^1[3-9]\d{9}$/
-  if (!phoneRegex.test(instantPhone.value.trim())) {
-    proxy.$modal.msgWarning('请输入正确的手机号格式')
-    return
-  }
+  // if (!phoneRegex.test(instantPhone.value.trim())) {
+  //   proxy.$modal.msgWarning('请输入正确的手机号格式')
+  //   return
+  // }
   
   const request = {
     phone: instantPhone.value.trim(),

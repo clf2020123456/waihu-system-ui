@@ -74,14 +74,14 @@
           @keyup.enter="handleQuery"
         />
       </el-form-item>
-      <el-form-item label="回复内容" prop="replyContent">
+      <!-- <el-form-item label="回复内容" prop="replyContent">
         <el-input
           v-model="queryParams.replyContent"
           placeholder="请输入回复内容"
           clearable
           @keyup.enter="handleQuery"
         />
-      </el-form-item>
+      </el-form-item> -->
       <el-form-item>
         <el-button type="primary" icon="Search" @click="handleQuery">搜索</el-button>
         <el-button icon="Refresh" @click="resetQuery">重置</el-button>
@@ -141,23 +141,19 @@
       <el-table-column label="手机号" align="center" prop="phone" />
       <el-table-column label="消费金额" align="center" prop="consumptionAmount" />
       <el-table-column label="短信内容" align="center" prop="smsContent" :show-overflow-tooltip="true" width="200" />
-      <el-table-column label="回复内容" align="center" prop="replyContent" width="250">
+      <el-table-column label="发送状态" align="center" prop="sendStatus" width="100">
         <template #default="scope">
-          <div v-if="scope.row.replyContent">
-            <div v-if="isJsonArray(scope.row.replyContent)">
-              <el-tag type="info">{{ getReplyCount(scope.row.replyContent) }}条回复</el-tag>
-              <el-button link type="primary" @click="viewReplyDetails(scope.row.replyContent)">查看详情</el-button>
-            </div>
-            <div v-else>{{ scope.row.replyContent }}</div>
-          </div>
-          <span v-else>-</span>
+          <el-tag v-if="scope.row.sendStatus === 'success'" type="success">发送成功</el-tag>
+          <el-tag v-else-if="scope.row.sendStatus === 'failed'" type="danger">发送失败</el-tag>
+          <el-tag v-else-if="scope.row.sendStatus === 'pending'" type="warning">待发送</el-tag>
+          <el-tag v-else type="info">未知</el-tag>
         </template>
       </el-table-column>
+      <el-table-column label="响应消息" align="center" prop="responseMessage" :show-overflow-tooltip="true" width="150" />
       <el-table-column label="备注" align="center" prop="remark" :show-overflow-tooltip="true" />
       <el-table-column label="创建时间" align="center" prop="createTime" width="180" />
       <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="240">
         <template #default="scope">
-          <el-button link type="primary" icon="ChatDotRound" @click="handleReply(scope.row)" v-hasPermi="['system:Sms106Record:edit']">回复</el-button>
           <el-button link type="primary" icon="Edit" @click="handleUpdate(scope.row)" v-hasPermi="['system:Sms106Record:edit']">修改</el-button>
           <el-button link type="primary" icon="Delete" @click="handleDelete(scope.row)" v-hasPermi="['system:Sms106Record:remove']">删除</el-button>
         </template>
@@ -240,20 +236,15 @@
         <el-form-item label="短信内容">
           <el-input v-model="form.smsContent" type="textarea" :rows="3" placeholder="请输入短信内容" />
         </el-form-item>
-        <el-form-item label="回复内容">
-          <div v-if="isJsonArray(form.replyContent)" style="max-height: 300px; overflow-y: auto; border: 1px solid #dcdfe6; border-radius: 4px; padding: 10px;">
-            <el-timeline>
-              <el-timeline-item
-                v-for="(item, index) in parseReplyContent(form.replyContent)"
-                :key="index"
-                :timestamp="formatReplyTime(item)"
-                placement="top"
-              >
-                <p style="margin: 0;">{{ item.content }}</p>
-              </el-timeline-item>
-            </el-timeline>
-          </div>
-          <el-input v-else v-model="form.replyContent" type="textarea" :rows="3" placeholder="请输入回复内容" />
+        <el-form-item label="发送状态" prop="sendStatus">
+          <el-select v-model="form.sendStatus" placeholder="请选择发送状态">
+            <el-option label="发送成功" value="success"></el-option>
+            <el-option label="发送失败" value="failed"></el-option>
+            <el-option label="待发送" value="pending"></el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item label="响应消息" prop="responseMessage">
+          <el-input v-model="form.responseMessage" type="textarea" placeholder="请输入响应消息" />
         </el-form-item>
         <el-form-item label="备注" prop="remark">
           <el-input v-model="form.remark" type="textarea" placeholder="请输入内容" />
@@ -517,6 +508,8 @@ function reset() {
     consumptionAmount: null,
     smsContent: null,
     replyContent: null,
+    sendStatus: null,
+    responseMessage: null,
     remark: null,
     createBy: null,
     createTime: null,
