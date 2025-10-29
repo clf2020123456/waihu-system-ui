@@ -101,8 +101,30 @@
               </el-table-column>
               <!-- <el-table-column label="公司管理员" align="center" key="companyUserName" prop="companyUserName" v-if="columns[6].visible" :show-overflow-tooltip="true" /> -->
               <el-table-column label="上级" align="center" key="parentUserName" prop="parentUserName" v-if="columns[6].visible" :show-overflow-tooltip="true" />
-              <el-table-column label="备注" align="center" key="remark" prop="remark" v-if="columns[7].visible" :show-overflow-tooltip="true" />
-              <el-table-column label="创建时间" align="center" prop="createTime" v-if="columns[8].visible" width="160">
+              <el-table-column label="106短信" align="center" key="smsEnable" prop="smsEnable" v-if="columns[7].visible && canConfigSms" width="100">
+                <template #default="scope">
+                  <el-switch
+                    v-model="scope.row.smsEnable"
+                    active-value="Y"
+                    inactive-value="N"
+                    @change="handleSmsEnableChange(scope.row)"
+                  ></el-switch>
+                </template>
+              </el-table-column>
+              <el-table-column label="106短信" align="center" key="smsEnable" prop="smsEnable" v-if="columns[7].visible && !canConfigSms" width="100">
+                <template #default="scope">
+                  <el-tag :type="scope.row.smsEnable === 'Y' ? 'success' : 'info'">
+                    {{ scope.row.smsEnable === 'Y' ? '开启' : '关闭' }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="短信配置" align="center" width="120" v-if="canConfigSms">
+                <template #default="scope">
+                  <el-button link type="primary" icon="Setting" @click="handleSmsConfig(scope.row)" v-hasPermi="['system:user:edit']">配置</el-button>
+                </template>
+              </el-table-column>
+              <el-table-column label="备注" align="center" key="remark" prop="remark" v-if="columns[8].visible" :show-overflow-tooltip="true" />
+              <el-table-column label="创建时间" align="center" prop="createTime" v-if="columns[9].visible" width="160">
                 <template #default="scope">
                   <span>{{ parseTime(scope.row.createTime) }}</span>
                 </template>
@@ -243,6 +265,48 @@
       </template>
     </el-dialog>
 
+    <!-- 106短信配置对话框 -->
+    <el-dialog title="106短信配置" v-model="smsConfigOpen" width="600px" append-to-body>
+      <el-form :model="smsConfigForm" label-width="140px">
+        <el-form-item label="用户账号">
+          <el-input v-model="smsConfigForm.userName" disabled />
+        </el-form-item>
+        <el-form-item label="用户昵称">
+          <el-input v-model="smsConfigForm.nickName" disabled />
+        </el-form-item>
+        <el-divider />
+        <el-form-item label="拨打前短信">
+          <el-radio-group v-model="smsConfigForm.preCallEnabled">
+            <el-radio label="Y">开启</el-radio>
+            <el-radio label="N">关闭</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="拨打前短信模板" v-if="smsConfigForm.preCallEnabled === 'Y'">
+          <el-select v-model="smsConfigForm.preCallTemplateId" placeholder="请选择模板" clearable style="width: 100%">
+            <el-option v-for="template in smsTemplateList" :key="template.templateId" :label="`${template.templateId} - ${template.title}`" :value="template.templateId"></el-option>
+          </el-select>
+        </el-form-item>
+        <el-divider />
+        <el-form-item label="拨打后短信">
+          <el-radio-group v-model="smsConfigForm.postCallEnabled">
+            <el-radio label="Y">开启</el-radio>
+            <el-radio label="N">关闭</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="拨打后短信模板" v-if="smsConfigForm.postCallEnabled === 'Y'">
+          <el-select v-model="smsConfigForm.postCallTemplateId" placeholder="请选择模板" clearable style="width: 100%">
+            <el-option v-for="template in smsTemplateList" :key="template.templateId" :label="`${template.templateId} - ${template.title}`" :value="template.templateId"></el-option>
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button type="primary" @click="submitSmsConfig">确 定</el-button>
+          <el-button @click="smsConfigOpen = false">取 消</el-button>
+        </div>
+      </template>
+    </el-dialog>
+
     <!-- 用户导入对话框 -->
     <el-dialog :title="upload.title" v-model="upload.open" width="400px" append-to-body>
       <el-upload ref="uploadRef" :limit="1" accept=".xlsx, .xls" :headers="upload.headers" :action="upload.url + '?updateSupport=' + upload.updateSupport" :disabled="upload.isUploading" :on-progress="handleFileUploadProgress" :on-success="handleFileSuccess" :auto-upload="false" drag>
@@ -273,6 +337,8 @@ import { getToken } from "@/utils/auth"
 import useAppStore from '@/store/modules/app'
 import useUserStore from '@/store/modules/user'
 import { changeUserStatus, listUser, resetUserPwd, delUser, getUser, updateUser, addUser, deptTreeSelect, getCompanyList as fetchCompanyList, getCompanyUserList as fetchCompanyUserList, getSubAdminList as fetchSubAdminList } from "@/api/system/user"
+import { getSms106ConfigByUserId, saveSms106Config } from "@/api/system/sms106Config"
+import { listSmsTemplate } from "@/api/system/smsTemplate"
 import { Splitpanes, Pane } from "splitpanes"
 import "splitpanes/dist/splitpanes.css"
 
@@ -302,10 +368,18 @@ const subAdminList = ref([])
 const parentUserList = ref([])
 const parentUserListForFilter = ref([])
 const currentUserRoleId = ref(null) // 当前用户的角色ID
+const smsConfigOpen = ref(false)
+const smsConfigForm = ref({})
+const smsTemplateList = ref([])
 
 /** 判断当前用户是否是超级管理员 */
 const isAdmin = computed(() => {
   return userStore.roles && userStore.roles.includes('admin')
+})
+
+/** 判断是否可以配置106短信（超级管理员、子管理员、公司管理员） */
+const canConfigSms = computed(() => {
+  return isAdmin.value || currentUserRoleId.value === 103 || currentUserRoleId.value === 102
 })
 
 /*** 用户导入参数 */
@@ -332,8 +406,9 @@ const columns = ref([
   { key: 4, label: `手机号码`, visible: true },
   { key: 5, label: `状态`, visible: true },
   { key: 6, label: `上级`, visible: true },
-  { key: 7, label: `备注`, visible: true },
-  { key: 8, label: `创建时间`, visible: true }
+  { key: 7, label: `106短信`, visible: canConfigSms },
+  { key: 8, label: `备注`, visible: true },
+  { key: 9, label: `创建时间`, visible: true }
 ])
 
 const data = reactive({
@@ -468,6 +543,23 @@ function handleStatusChange(row) {
   })
 }
 
+/** 106短信开关修改 */
+function handleSmsEnableChange(row) {
+  let text = row.smsEnable === "Y" ? "开启" : "关闭"
+  proxy.$modal.confirm('确认要"' + text + '""' + row.userName + '"的106短信吗?').then(function () {
+    // 先获取完整的用户信息，然后更新 smsEnable 字段
+    return getUser(row.userId).then(response => {
+      const userData = response.data
+      userData.smsEnable = row.smsEnable
+      return updateUser(userData)
+    })
+  }).then(() => {
+    proxy.$modal.msgSuccess(text + "成功")
+  }).catch(function () {
+    row.smsEnable = row.smsEnable === "Y" ? "N" : "Y"
+  })
+}
+
 /** 更多操作 */
 function handleCommand(command, row) {
   switch (command) {
@@ -563,9 +655,65 @@ function reset() {
     companyUserId: undefined,
     parentUserId: undefined,
     maxUserCount: undefined,
-    expiryDate: undefined
+    expiryDate: undefined,
+    smsEnable: "N"
   }
   proxy.resetForm("userRef")
+}
+
+/** 106短信配置 */
+function handleSmsConfig(row) {
+  // 加载短信模板列表
+  listSmsTemplate({ isEnabled: 'Y' }).then(res => {
+    smsTemplateList.value = res.rows || res.data || []
+  })
+  
+  // 先获取用户的配置
+  getSms106ConfigByUserId(row.userId).then(response => {
+    if (response.data) {
+      smsConfigForm.value = {
+        userId: row.userId,
+        userName: row.userName,
+        nickName: row.nickName,
+        preCallEnabled: response.data.preCallEnabled || "N",
+        preCallTemplateId: response.data.preCallTemplateId,
+        postCallEnabled: response.data.postCallEnabled || "N",
+        postCallTemplateId: response.data.postCallTemplateId,
+        id: response.data.id
+      }
+    } else {
+      smsConfigForm.value = {
+        userId: row.userId,
+        userName: row.userName,
+        nickName: row.nickName,
+        preCallEnabled: "N",
+        preCallTemplateId: null,
+        postCallEnabled: "N",
+        postCallTemplateId: null
+      }
+    }
+    smsConfigOpen.value = true
+  }).catch(() => {
+    // 如果没有配置，创建空配置
+    smsConfigForm.value = {
+      userId: row.userId,
+      userName: row.userName,
+      nickName: row.nickName,
+      preCallEnabled: "N",
+      preCallTemplateId: null,
+      postCallEnabled: "N",
+      postCallTemplateId: null
+    }
+    smsConfigOpen.value = true
+  })
+}
+
+/** 提交106短信配置 */
+function submitSmsConfig() {
+  saveSms106Config(smsConfigForm.value).then(response => {
+    proxy.$modal.msgSuccess("配置成功")
+    smsConfigOpen.value = false
+  })
 }
 
 /** 取消按钮 */

@@ -95,7 +95,7 @@
           plain
           icon="Plus"
           @click="handleAdd"
-          v-hasPermi="['system:smsRecord:add']"
+          v-hasPermi="['system:Sms106Record:add']"
         >新增</el-button>
       </el-col>
       <el-col :span="1.5">
@@ -105,7 +105,7 @@
           icon="Edit"
           :disabled="single"
           @click="handleUpdate"
-          v-hasPermi="['system:smsRecord:edit']"
+          v-hasPermi="['system:Sms106Record:edit']"
         >修改</el-button>
       </el-col>
       <el-col :span="1.5">
@@ -115,7 +115,7 @@
           icon="Delete"
           :disabled="multiple"
           @click="handleDelete"
-          v-hasPermi="['system:smsRecord:remove']"
+          v-hasPermi="['system:Sms106Record:remove']"
         >删除</el-button>
       </el-col>
       <el-col :span="1.5">
@@ -124,13 +124,13 @@
           plain
           icon="Download"
           @click="handleExport"
-          v-hasPermi="['system:smsRecord:export']"
+          v-hasPermi="['system:Sms106Record:export']"
         >导出</el-button>
       </el-col>
       <right-toolbar v-model:showSearch="showSearch" @queryTable="getList"></right-toolbar>
     </el-row>
 
-    <el-table v-loading="loading" :data="smsRecordList" @selection-change="handleSelectionChange">
+    <el-table v-loading="loading" :data="Sms106RecordList" @selection-change="handleSelectionChange">
       <el-table-column type="selection" width="55" align="center" />
       <el-table-column label="业务员" align="center" prop="userName" width="120" />
       <!-- <el-table-column label="短信记录ID" align="center" prop="id" />
@@ -157,9 +157,9 @@
       <el-table-column label="创建时间" align="center" prop="createTime" width="180" />
       <el-table-column label="操作" align="center" class-name="small-padding fixed-width" width="240">
         <template #default="scope">
-          <el-button link type="primary" icon="ChatDotRound" @click="handleReply(scope.row)" v-hasPermi="['system:smsRecord:edit']">回复</el-button>
-          <el-button link type="primary" icon="Edit" @click="handleUpdate(scope.row)" v-hasPermi="['system:smsRecord:edit']">修改</el-button>
-          <el-button link type="primary" icon="Delete" @click="handleDelete(scope.row)" v-hasPermi="['system:smsRecord:remove']">删除</el-button>
+          <el-button link type="primary" icon="ChatDotRound" @click="handleReply(scope.row)" v-hasPermi="['system:Sms106Record:edit']">回复</el-button>
+          <el-button link type="primary" icon="Edit" @click="handleUpdate(scope.row)" v-hasPermi="['system:Sms106Record:edit']">修改</el-button>
+          <el-button link type="primary" icon="Delete" @click="handleDelete(scope.row)" v-hasPermi="['system:Sms106Record:remove']">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -216,9 +216,9 @@
       </template>
     </el-dialog>
 
-    <!-- 添加或修改短信记录对话框 -->
+    <!-- 添加或修改106短信记录对话框 -->
     <el-dialog :title="title" v-model="open" width="500px" append-to-body>
-      <el-form ref="smsRecordRef" :model="form" :rules="rules" label-width="80px">
+      <el-form ref="Sms106RecordRef" :model="form" :rules="rules" label-width="80px">
         <el-form-item label="关联ID" prop="relationId">
           <el-input v-model="form.relationId" placeholder="请输入关联ID" />
         </el-form-item>
@@ -269,14 +269,14 @@
   </div>
 </template>
 
-<script setup name="SmsRecord">
-import { listSmsRecord, getSmsRecord, delSmsRecord, addSmsRecord, updateSmsRecord } from "@/api/system/smsRecord"
+<script setup name="Sms106Record">
+import { listSms106Record, getSms106Record, delSms106Record, addSms106Record, updateSms106Record } from "@/api/system/Sms106Record"
 import { listUser, getCompanyList, getMinisterList } from "@/api/system/user"
 import { addInstantRequest } from '@/api/system/instantRequest'
 
 const { proxy } = getCurrentInstance()
 
-const smsRecordList = ref([])
+const Sms106RecordList = ref([])
 const open = ref(false)
 const loading = ref(true)
 const showSearch = ref(true)
@@ -338,7 +338,7 @@ const data = reactive({
 
 const { queryParams, form, rules } = toRefs(data)
 
-/** 查询短信记录列表 */
+/** 查询106短信记录列表 */
 function getList() {
   loading.value = true
   const params = { ...queryParams.value }
@@ -354,8 +354,8 @@ function getList() {
     params.userId = queryParams.value.salesmanUserId
   }
   
-  listSmsRecord(params).then(response => {
-    smsRecordList.value = response.rows
+  listSms106Record(params).then(response => {
+    Sms106RecordList.value = response.rows
     total.value = response.total
     loading.value = false
   })
@@ -508,6 +508,7 @@ function cancel() {
 function reset() {
   form.value = {
     id: null,
+    userId: null,
     relationId: null,
     taskId: null,
     batchNo: null,
@@ -522,7 +523,7 @@ function reset() {
     updateBy: null,
     updateTime: null
   }
-  proxy.resetForm("smsRecordRef")
+  proxy.resetForm("Sms106RecordRef")
 }
 
 /** 搜索按钮操作 */
@@ -554,32 +555,32 @@ function handleSelectionChange(selection) {
 function handleAdd() {
   reset()
   open.value = true
-  title.value = "添加短信记录"
+  title.value = "添加106短信记录"
 }
 
 /** 修改按钮操作 */
 function handleUpdate(row) {
   reset()
   const _id = row.id || ids.value
-  getSmsRecord(_id).then(response => {
+  getSms106Record(_id).then(response => {
     form.value = response.data
     open.value = true
-    title.value = "修改短信记录"
+    title.value = "修改106短信记录"
   })
 }
 
 /** 提交按钮 */
 function submitForm() {
-  proxy.$refs["smsRecordRef"].validate(valid => {
+  proxy.$refs["Sms106RecordRef"].validate(valid => {
     if (valid) {
       if (form.value.id != null) {
-        updateSmsRecord(form.value).then(response => {
+        updateSms106Record(form.value).then(response => {
           proxy.$modal.msgSuccess("修改成功")
           open.value = false
           getList()
         })
       } else {
-        addSmsRecord(form.value).then(response => {
+        addSms106Record(form.value).then(response => {
           proxy.$modal.msgSuccess("新增成功")
           open.value = false
           getList()
@@ -592,8 +593,8 @@ function submitForm() {
 /** 删除按钮操作 */
 function handleDelete(row) {
   const _ids = row.id || ids.value
-  proxy.$modal.confirm('是否确认删除短信记录编号为"' + _ids + '"的数据项？').then(function() {
-    return delSmsRecord(_ids)
+  proxy.$modal.confirm('是否确认删除106短信记录编号为"' + _ids + '"的数据项？').then(function() {
+    return delSms106Record(_ids)
   }).then(() => {
     getList()
     proxy.$modal.msgSuccess("删除成功")
@@ -615,7 +616,7 @@ function handleExport() {
     params.userId = queryParams.value.salesmanUserId
   }
   
-  proxy.download('system/smsRecord/export', params, `smsRecord_${new Date().getTime()}.xlsx`)
+  proxy.download('system/Sms106Record/export', params, `Sms106Record_${new Date().getTime()}.xlsx`)
 }
 
 /** 回复按钮操作 */
@@ -677,7 +678,7 @@ function confirmReply() {
       replyContent: JSON.stringify(replyList)
     }
     
-    return updateSmsRecord(updateData)
+    return updateSms106Record(updateData)
   }).then(() => {
     proxy.$modal.msgSuccess('回复发送成功')
     replyDialogVisible.value = false
