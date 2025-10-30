@@ -237,13 +237,15 @@
             </el-form-item>
           </el-col>
         </el-row>
-        <el-row v-if="isCompanyManagerRole">
+        <!-- 使用人数：公司管理员和子管理员都需要 -->
+        <el-row v-if="needMaxUserCount">
           <el-col :span="12">
             <el-form-item label="使用人数" prop="maxUserCount">
               <el-input-number v-model="form.maxUserCount" :min="1" :max="10000" :disabled="isEditingSelf" placeholder="请输入使用人数" style="width: 100%;" />
             </el-form-item>
           </el-col>
-          <el-col :span="12">
+          <!-- 到期时间：只有公司管理员需要 -->
+          <el-col :span="12" v-if="isCompanyManagerRole">
             <el-form-item label="到期时间" prop="expiryDate">
               <el-date-picker v-model="form.expiryDate" type="datetime" :disabled="isEditingSelf" placeholder="请选择到期时间" value-format="YYYY-MM-DD HH:mm:ss" style="width: 100%;" />
             </el-form-item>
@@ -440,9 +442,14 @@ const data = reactive({
 
 const { queryParams, form, rules } = toRefs(data)
 
-/** 判断是否是公司管理员角色 */
+/** 判断是否是公司管理员角色（需要设置使用人数和到期时间） */
 const isCompanyManagerRole = computed(() => {
   return form.value.roleIds === 102
+})
+
+/** 判断是否需要设置使用人数限制（公司管理员和子管理员） */
+const needMaxUserCount = computed(() => {
+  return form.value.roleIds === 102 || form.value.roleIds === 103
 })
 
 /** 判断当前编辑的用户是否是自己 */
