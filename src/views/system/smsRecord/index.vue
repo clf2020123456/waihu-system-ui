@@ -82,6 +82,13 @@
           @keyup.enter="handleQuery"
         />
       </el-form-item>
+      <el-form-item label="回复状态" prop="hasReply">
+        <el-select v-model="queryParams.hasReply" placeholder="请选择回复状态" clearable style="width: 150px;">
+          <el-option label="全部" :value="null"></el-option>
+          <el-option label="有回复" :value="1"></el-option>
+          <el-option label="无回复" :value="0"></el-option>
+        </el-select>
+      </el-form-item>
       <el-form-item>
         <el-button type="primary" icon="Search" @click="handleQuery">搜索</el-button>
         <el-button icon="Refresh" @click="resetQuery">重置</el-button>
@@ -313,6 +320,7 @@ const data = reactive({
     consumptionAmount: null,
     smsContent: null,
     replyContent: null,
+    hasReply: null,
   },
   rules: {
     taskId: [
